@@ -8,7 +8,7 @@ import archiveService from '../services/archiveService'
 
 export default function FavoritesPage({ onSelectGun, onNavigateCatalog }) {
   const { favorites, loading: favLoading, error: favError, refetch } = useFavorites()
-  const { guns: apiGuns } = useGuns({ limit: 100 })
+  const { guns: apiGuns } = useGuns({ limit: 50 })
 
   const allKnownGuns = useMemo(() => {
     const map = new Map()

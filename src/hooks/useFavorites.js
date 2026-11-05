@@ -49,6 +49,9 @@ export function useFavorites() {
 
   useEffect(() => {
     fetchFavorites()
+    const handleFavUpdate = () => fetchFavorites()
+    window.addEventListener('favorites-updated', handleFavUpdate)
+    return () => window.removeEventListener('favorites-updated', handleFavUpdate)
   }, [fetchFavorites])
 
   return { favorites, loading, error, isLocal, refetch: fetchFavorites }
@@ -68,6 +71,7 @@ export function useToggleFavorite() {
         user_identifier: userIdentifier,
       })
       if (response.success) {
+        window.dispatchEvent(new CustomEvent('favorites-updated'))
         return response.data
       }
       throw new Error(response.message)
@@ -83,6 +87,7 @@ export function useToggleFavorite() {
         isFavorited = false
       }
       writeLocalFavs(current)
+      window.dispatchEvent(new CustomEvent('favorites-updated'))
       return { is_favorited: isFavorited }
     } finally {
       setLoading(false)

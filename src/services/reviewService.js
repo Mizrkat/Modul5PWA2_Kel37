@@ -5,9 +5,43 @@ import {
   setQueryCache,
   invalidateQueryCache,
 } from '../utils/queryCache'
+import outboxService from './outboxService'
 
 const LOCAL_REVIEWS_KEY = 'bore_barrel_local_reviews'
-const REACTIONS_KEY = 'bore_barrel_review_reactions'
+const REACTIONS_TAG = '__REACTIONS__:'
+
+export const parseCommentReactions = (rawComment) => {
+  if (!rawComment || typeof rawComment !== 'string') {
+    return { text: '', reactions: { likes: [], dislikes: [] } }
+  }
+  const idx = rawComment.indexOf(REACTIONS_TAG)
+  if (idx === -1) {
+    return { text: rawComment.trim(), reactions: { likes: [], dislikes: [] } }
+  }
+  const text = rawComment.substring(0, idx).trim()
+  const jsonStr = rawComment.substring(idx + REACTIONS_TAG.length).trim()
+  try {
+    const parsed = JSON.parse(jsonStr)
+    return {
+      text,
+      reactions: {
+        likes: Array.isArray(parsed.likes) ? parsed.likes : [],
+        dislikes: Array.isArray(parsed.dislikes) ? parsed.dislikes : [],
+      },
+    }
+  } catch {
+    return { text: rawComment.trim(), reactions: { likes: [], dislikes: [] } }
+  }
+}
+
+export const buildCommentWithReactions = (text, reactions) => {
+  const cleanText = (text || '').trim()
+  const payload = {
+    likes: Array.from(new Set(reactions?.likes || [])),
+    dislikes: Array.from(new Set(reactions?.dislikes || [])),
+  }
+  return `${cleanText}\n\n${REACTIONS_TAG}${JSON.stringify(payload)}`
+}
 
 const readLocalReviews = () => {
   try {
@@ -26,37 +60,44 @@ const writeLocalReviews = (map) => {
   }
 }
 
-const readReactionsMap = () => {
-  try {
-    const raw = localStorage.getItem(REACTIONS_KEY)
-    return raw ? JSON.parse(raw) : {}
-  } catch {
-    return {}
-  }
-}
-
-const writeReactionsMap = (map) => {
-  try {
-    localStorage.setItem(REACTIONS_KEY, JSON.stringify(map))
-  } catch {
-    // Ignore
-  }
-}
-
 class ReviewService {
+  constructor() {
+    if (typeof window !== 'undefined') {
+      window.addEventListener('offline-review-synced', (e) => {
+        const { tempId, gunId } = e.detail || {}
+        if (tempId && gunId) {
+          const localMap = readLocalReviews()
+          const key = String(gunId)
+          if (localMap[key]?.added) {
+            localMap[key].added = localMap[key].added.filter(
+              (r) => String(r.id) !== String(tempId),
+            )
+            writeLocalReviews(localMap)
+          }
+          invalidateQueryCache(`reviews_${gunId}`)
+        }
+      })
+    }
+  }
+
   /**
    * Enrich a review with reaction counts (likes, dislikes, userReaction) and ownership flag.
    */
   enrichReview(r, currentUserId) {
-    const reactionsMap = readReactionsMap()
-    const entry = reactionsMap[String(r.id)] || {
-      likes: 0,
-      dislikes: 0,
-      byUser: {},
-    }
+    const { text, reactions } = parseCommentReactions(r.raw_comment || r.comment)
     const rawOwner = r.raw_user_id || r.user_id || r.owner_id || ''
     const isOwn =
       Boolean(currentUserId) && String(rawOwner) === String(currentUserId)
+
+    const likesList = Array.isArray(reactions.likes) ? reactions.likes : []
+    const dislikesList = Array.isArray(reactions.dislikes) ? reactions.dislikes : []
+
+    let userReaction = null
+    if (likesList.includes(currentUserId)) {
+      userReaction = 'like'
+    } else if (dislikesList.includes(currentUserId)) {
+      userReaction = 'dislike'
+    }
 
     return {
       ...r,
@@ -70,17 +111,20 @@ class ReviewService {
               ? `Operator ${String(rawOwner).substring(0, 8)}`
               : 'Anonymous')),
       rating: Number(r.rating) || 5,
-      comment: r.comment || '',
+      comment: text,
+      raw_comment: r.raw_comment || r.comment,
+      reactions: { likes: likesList, dislikes: dislikesList },
       created_at: r.created_at || new Date().toISOString(),
       isOwn,
-      likes: entry.likes ?? 0,
-      dislikes: entry.dislikes ?? 0,
-      userReaction: entry.byUser?.[currentUserId] || null, // 'like' | 'dislike' | null
+      isPendingSync: Boolean(r.isPendingSync),
+      likes: likesList.length,
+      dislikes: dislikesList.length,
+      userReaction,
     }
   }
 
   /**
-   * Fetch all reviews for a given product (server + local + community seed).
+   * Fetch all reviews for a given product (server + local).
    */
   async getReviews(gunId, options = {}) {
     const currentUserId = getUserIdentifier()
@@ -89,8 +133,10 @@ class ReviewService {
     let serverList = []
     const cached = !options.forceRefresh ? getQueryCache(cacheKey) : null
 
-    if (cached && cached.isFresh) {
+    if (cached && (cached.isFresh || !navigator.onLine)) {
       serverList = cached.data
+    } else if (!navigator.onLine) {
+      serverList = cached?.data || []
     } else {
       try {
         if (IS_SUPABASE && !String(gunId).startsWith('local-')) {
@@ -107,6 +153,7 @@ class ReviewService {
                 : 'Anonymous',
               rating: r.rating,
               comment: r.comment || '',
+              raw_comment: r.comment || '',
               created_at: r.created_at,
             }))
             setQueryCache(cacheKey, serverList)
@@ -119,11 +166,12 @@ class ReviewService {
           }
         }
       } catch (err) {
-        console.warn('Using local fallback reviews:', err)
+        console.warn('Network review fetch error, falling back to cache:', err)
+        serverList = cached?.data || []
       }
     }
 
-    // Merge local overrides/additions + seed reviews from other users
+    // Merge local overrides & offline pending reviews
     const localMap = readLocalReviews()
     const productLocal = localMap[String(gunId)] || {
       added: [],
@@ -132,10 +180,7 @@ class ReviewService {
     }
     const deletedSet = new Set((productLocal.deleted || []).map(String))
 
-    const combined = [
-      ...(productLocal.added || []),
-      ...serverList,
-    ]
+    const combined = [...(productLocal.added || []), ...serverList]
 
     const seenIds = new Set()
     const finalReviews = []
@@ -153,15 +198,56 @@ class ReviewService {
       success: true,
       data: finalReviews,
       fromCache: Boolean(cached && cached.isFresh),
+      isOffline: !navigator.onLine,
     }
   }
 
   /**
-   * Submit a new review.
+   * Submit a new review (supports offline queueing).
    */
-  async createReview(gunId, reviewData) {
-    const currentUserId = reviewData.user_id || reviewData.user_identifier || getUserIdentifier()
+  async createReview(gunId, reviewData, options = {}) {
+    const currentUserId =
+      reviewData.user_id || reviewData.user_identifier || getUserIdentifier()
     const profile = getUserProfile()
+
+    // Offline handling
+    if (!navigator.onLine && !options.fromOutbox) {
+      const tempId = `offline-rev-${Date.now()}`
+      const newReview = {
+        id: tempId,
+        product_id: gunId,
+        raw_user_id: currentUserId,
+        user_identifier: `${profile.username || 'Shooter'} (You)`,
+        rating: Number(reviewData.rating),
+        comment: reviewData.comment || '',
+        raw_comment: reviewData.comment || '',
+        created_at: new Date().toISOString(),
+        isPendingSync: true,
+      }
+
+      const localMap = readLocalReviews()
+      const key = String(gunId)
+      if (!localMap[key]) localMap[key] = { added: [], edited: {}, deleted: [] }
+      localMap[key].added = [newReview, ...localMap[key].added]
+      writeLocalReviews(localMap)
+      invalidateQueryCache(`reviews_${gunId}`)
+
+      outboxService.enqueue('CREATE_REVIEW', {
+        gunId,
+        reviewData: {
+          user_id: currentUserId,
+          rating: Number(reviewData.rating),
+          comment: reviewData.comment || '',
+        },
+        tempId,
+      })
+
+      return {
+        success: true,
+        data: this.enrichReview(newReview, currentUserId),
+        isOffline: true,
+      }
+    }
 
     let created = null
     if (IS_SUPABASE && !String(gunId).startsWith('local-')) {
@@ -177,7 +263,11 @@ class ReviewService {
         })
         created = Array.isArray(res) ? res[0] : res
       } catch (err) {
-        console.warn('Server review create fallback to localStorage:', err)
+        if (!options.fromOutbox) {
+          // Fall back to offline queue
+          return this.createReview(gunId, reviewData, { fromOutbox: false })
+        }
+        throw err
       }
     }
 
@@ -188,6 +278,7 @@ class ReviewService {
       user_identifier: `${profile.username || 'Shooter'} (You)`,
       rating: Number(reviewData.rating),
       comment: reviewData.comment || '',
+      raw_comment: reviewData.comment || '',
       created_at: created?.created_at || new Date().toISOString(),
     }
 
@@ -209,17 +300,20 @@ class ReviewService {
    */
   async updateReview(reviewId, reviewData, gunId) {
     const currentUserId = getUserIdentifier()
+    const { reactions } = parseCommentReactions(reviewData.raw_comment || '')
+    const fullComment = buildCommentWithReactions(reviewData.comment, reactions)
+
     if (
       IS_SUPABASE &&
       !String(reviewId).startsWith('local-rev-') &&
-      !String(reviewId).startsWith('seed-')
+      !String(reviewId).startsWith('offline-')
     ) {
       try {
         await apiClient.patch(
           `/rest/v1/reviews?id=eq.${reviewId}`,
           {
             rating: Number(reviewData.rating),
-            comment: reviewData.comment,
+            comment: fullComment,
           },
           { headers: { Prefer: 'return=representation' } },
         )
@@ -235,11 +329,17 @@ class ReviewService {
       localMap[key].edited[String(reviewId)] = {
         rating: Number(reviewData.rating),
         comment: reviewData.comment,
+        raw_comment: fullComment,
         updated_at: new Date().toISOString(),
       }
       localMap[key].added = localMap[key].added.map((r) =>
         String(r.id) === String(reviewId)
-          ? { ...r, rating: Number(reviewData.rating), comment: reviewData.comment }
+          ? {
+              ...r,
+              rating: Number(reviewData.rating),
+              comment: reviewData.comment,
+              raw_comment: fullComment,
+            }
           : r,
       )
       writeLocalReviews(localMap)
@@ -264,7 +364,7 @@ class ReviewService {
     if (
       IS_SUPABASE &&
       !String(reviewId).startsWith('local-rev-') &&
-      !String(reviewId).startsWith('seed-')
+      !String(reviewId).startsWith('offline-')
     ) {
       try {
         await apiClient.delete(`/rest/v1/reviews?id=eq.${reviewId}`)
@@ -291,52 +391,107 @@ class ReviewService {
   }
 
   /**
-   * Toggle Like ('like') or Dislike ('dislike') on another user's review.
+   * Toggle Like ('like') or Dislike ('dislike') on a review with Supabase persistence.
    */
-  toggleReaction(review, reactionType) {
+  async toggleReaction(review, reactionType) {
     const currentUserId = getUserIdentifier()
     const reviewId = String(review.id)
-    const reactionsMap = readReactionsMap()
+    const { text, reactions } = parseCommentReactions(review.raw_comment || review.comment)
 
-    const currentEntry = reactionsMap[reviewId] || {
-      likes: review.likes ?? 0,
-      dislikes: review.dislikes ?? 0,
-      byUser: {},
-    }
+    let likes = [...(reactions.likes || [])]
+    let dislikes = [...(reactions.dislikes || [])]
 
-    const prevReaction = currentEntry.byUser[currentUserId] || null
+    const hasLiked = likes.includes(currentUserId)
+    const hasDisliked = dislikes.includes(currentUserId)
 
-    if (prevReaction === reactionType) {
-      // Remove existing reaction
-      delete currentEntry.byUser[currentUserId]
-      if (reactionType === 'like') {
-        currentEntry.likes = Math.max(0, currentEntry.likes - 1)
+    if (reactionType === 'like') {
+      if (hasLiked) {
+        likes = likes.filter((id) => id !== currentUserId)
       } else {
-        currentEntry.dislikes = Math.max(0, currentEntry.dislikes - 1)
+        likes = Array.from(new Set([...likes, currentUserId]))
+        dislikes = dislikes.filter((id) => id !== currentUserId)
       }
-    } else {
-      // Switch or add new reaction
-      if (prevReaction === 'like') {
-        currentEntry.likes = Math.max(0, currentEntry.likes - 1)
-      } else if (prevReaction === 'dislike') {
-        currentEntry.dislikes = Math.max(0, currentEntry.dislikes - 1)
-      }
-      currentEntry.byUser[currentUserId] = reactionType
-      if (reactionType === 'like') {
-        currentEntry.likes += 1
+    } else if (reactionType === 'dislike') {
+      if (hasDisliked) {
+        dislikes = dislikes.filter((id) => id !== currentUserId)
       } else {
-        currentEntry.dislikes += 1
+        dislikes = Array.from(new Set([...dislikes, currentUserId]))
+        likes = likes.filter((id) => id !== currentUserId)
       }
     }
 
-    reactionsMap[reviewId] = currentEntry
-    writeReactionsMap(reactionsMap)
+    const updatedComment = buildCommentWithReactions(text, { likes, dislikes })
+
+    // 1. Sync to Supabase or queue in Outbox if offline
+    if (
+      IS_SUPABASE &&
+      !reviewId.startsWith('local-') &&
+      !reviewId.startsWith('offline-')
+    ) {
+      if (navigator.onLine) {
+        try {
+          await apiClient.patch(
+            `/rest/v1/reviews?id=eq.${reviewId}`,
+            { comment: updatedComment },
+            { headers: { Prefer: 'return=minimal' } },
+          )
+        } catch (err) {
+          console.warn('Reaction patch offline fallback:', err)
+          outboxService.enqueue('TOGGLE_REACTION', {
+            reviewId,
+            comment: updatedComment,
+          })
+        }
+      } else {
+        outboxService.enqueue('TOGGLE_REACTION', {
+          reviewId,
+          comment: updatedComment,
+        })
+      }
+    }
+
+    // 2. Optimistic local update
+    const productKey = String(review.product_id)
+    const localMap = readLocalReviews()
+    if (!localMap[productKey]) {
+      localMap[productKey] = { added: [], edited: {}, deleted: [] }
+    }
+    localMap[productKey].edited[reviewId] = {
+      ...(localMap[productKey].edited[reviewId] || {}),
+      raw_comment: updatedComment,
+    }
+    writeLocalReviews(localMap)
+    invalidateQueryCache(`reviews_${review.product_id}`)
+
+    let userReaction = null
+    if (likes.includes(currentUserId)) userReaction = 'like'
+    else if (dislikes.includes(currentUserId)) userReaction = 'dislike'
 
     return {
-      likes: currentEntry.likes,
-      dislikes: currentEntry.dislikes,
-      userReaction: currentEntry.byUser[currentUserId] || null,
+      likes: likes.length,
+      dislikes: dislikes.length,
+      userReaction,
+      reactions: { likes, dislikes },
     }
+  }
+
+  /**
+   * Sync a reaction comment update directly to Supabase (called by Outbox worker).
+   */
+  async syncReactionToSupabase(reviewId, comment) {
+    if (
+      IS_SUPABASE &&
+      !String(reviewId).startsWith('local-') &&
+      !String(reviewId).startsWith('offline-')
+    ) {
+      await apiClient.patch(
+        `/rest/v1/reviews?id=eq.${reviewId}`,
+        { comment },
+        { headers: { Prefer: 'return=minimal' } },
+      )
+      return true
+    }
+    return true
   }
 }
 

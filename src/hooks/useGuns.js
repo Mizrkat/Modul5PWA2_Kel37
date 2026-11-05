@@ -23,6 +23,7 @@ export function useGuns(params = {}) {
             fromCache: Boolean(response.fromCache),
             source: response.cacheSource || 'network',
             cachedAt: response.cachedAt || Date.now(),
+            isOffline: Boolean(response.isOffline),
           })
         } else {
           setError(response.message || 'Failed to fetch products.')

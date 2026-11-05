@@ -4,9 +4,51 @@ import {
   setQueryCache,
   invalidateQueryCache,
 } from '../utils/queryCache'
+import outboxService from './outboxService'
 
 const GALLERY_STORAGE_KEY = 'bore_barrel_gun_images'
+const OFFLINE_GUNS_KEY = 'bore_barrel_offline_guns'
 const IMAGES_SPEC_PREFIX = '__IMAGES__:'
+
+export const getOfflineGuns = () => {
+  try {
+    const raw = localStorage.getItem(OFFLINE_GUNS_KEY)
+    return raw ? JSON.parse(raw) : []
+  } catch {
+    return []
+  }
+}
+
+export const saveOfflineGun = (gun) => {
+  try {
+    const list = getOfflineGuns()
+    const updated = [gun, ...list.filter((g) => String(g.id) !== String(gun.id))]
+    localStorage.setItem(OFFLINE_GUNS_KEY, JSON.stringify(updated))
+    window.dispatchEvent(new CustomEvent('offline-guns-updated'))
+    invalidateQueryCache('guns_')
+  } catch {
+    // quota
+  }
+}
+
+export const removeOfflineGun = (gunId) => {
+  try {
+    const list = getOfflineGuns().filter((g) => String(g.id) !== String(gunId))
+    localStorage.setItem(OFFLINE_GUNS_KEY, JSON.stringify(list))
+    window.dispatchEvent(new CustomEvent('offline-guns-updated'))
+    invalidateQueryCache('guns_')
+  } catch {
+    //
+  }
+}
+
+if (typeof window !== 'undefined') {
+  window.addEventListener('offline-product-synced', (e) => {
+    if (e.detail?.tempId) {
+      removeOfflineGun(e.detail.tempId)
+    }
+  })
+}
 
 const readLocalGalleryMap = () => {
   try {
@@ -142,50 +184,106 @@ class GunService {
    */
   async getGuns(params = {}, options = {}) {
     const cacheKey = `guns_list_${JSON.stringify(params)}`
+    const offlineItems = getOfflineGuns().map(normalizeProduct)
+
     if (!options.forceRefresh) {
       const cached = getQueryCache(cacheKey)
-      if (cached && cached.isFresh) {
+      if (cached && (cached.isFresh || !navigator.onLine)) {
+        const cachedList = Array.isArray(cached.data?.data) ? cached.data.data : []
+        const merged = [
+          ...offlineItems,
+          ...cachedList.filter((g) => !offlineItems.some((o) => o.id === g.id)),
+        ]
         return {
           ...cached.data,
+          data: merged,
           fromCache: true,
           cacheSource: cached.source,
           cachedAt: cached.timestamp,
+          isOffline: !navigator.onLine,
         }
       }
     }
 
-    if (IS_SUPABASE) {
-      const queryParts = ['select=*']
-      if (params.search) {
-        queryParts.push(`name=ilike.*${encodeURIComponent(params.search)}*`)
-      }
-      if (params.category && params.category !== 'All') {
-        queryParts.push(`type=eq.${encodeURIComponent(params.category)}`)
-      }
-      if (params.sort_by) {
-        const order = params.order === 'desc' ? 'desc' : 'asc'
-        queryParts.push(`order=${encodeURIComponent(params.sort_by)}.${order}`)
-      } else {
-        queryParts.push('order=created_at.desc')
-      }
-      if (params.limit) {
-        queryParts.push(`limit=${params.limit}`)
-      }
-      const queryString = queryParts.join('&')
-      const data = await apiClient.get(`/rest/v1/products?${queryString}`)
-      const list = Array.isArray(data) ? data.map(normalizeProduct) : []
-      const result = {
+    if (!navigator.onLine) {
+      const cached = getQueryCache(cacheKey)
+      const cachedList = Array.isArray(cached?.data?.data) ? cached.data.data : []
+      const merged = [
+        ...offlineItems,
+        ...cachedList.filter((g) => !offlineItems.some((o) => o.id === g.id)),
+      ]
+      return {
         success: true,
-        data: list,
+        data: merged,
         pagination: {
-          total: list.length,
+          total: merged.length,
           page: params.page || 1,
           limit: params.limit || 50,
         },
-        fromCache: false,
+        fromCache: true,
+        cacheSource: 'offline-cache',
+        isOffline: true,
       }
-      setQueryCache(cacheKey, result)
-      return result
+    }
+
+    if (IS_SUPABASE) {
+      try {
+        const queryParts = ['select=*']
+        if (params.search) {
+          queryParts.push(`name=ilike.*${encodeURIComponent(params.search)}*`)
+        }
+        if (params.category && params.category !== 'All') {
+          queryParts.push(`type=eq.${encodeURIComponent(params.category)}`)
+        }
+        if (params.sort_by) {
+          const order = params.order === 'desc' ? 'desc' : 'asc'
+          queryParts.push(`order=${encodeURIComponent(params.sort_by)}.${order}`)
+        } else {
+          queryParts.push('order=created_at.desc')
+        }
+        if (params.limit) {
+          queryParts.push(`limit=${params.limit}`)
+        }
+        const queryString = queryParts.join('&')
+        const data = await apiClient.get(`/rest/v1/products?${queryString}`)
+        const list = Array.isArray(data) ? data.map(normalizeProduct) : []
+        const merged = [
+          ...offlineItems,
+          ...list.filter((g) => !offlineItems.some((o) => o.id === g.id)),
+        ]
+        const result = {
+          success: true,
+          data: merged,
+          pagination: {
+            total: merged.length,
+            page: params.page || 1,
+            limit: params.limit || 50,
+          },
+          fromCache: false,
+        }
+        setQueryCache(cacheKey, result)
+        return result
+      } catch (err) {
+        console.warn('Network error in getGuns, falling back to cache:', err)
+        const cached = getQueryCache(cacheKey)
+        const cachedList = Array.isArray(cached?.data?.data) ? cached.data.data : []
+        const merged = [
+          ...offlineItems,
+          ...cachedList.filter((g) => !offlineItems.some((o) => o.id === g.id)),
+        ]
+        return {
+          success: true,
+          data: merged,
+          pagination: {
+            total: merged.length,
+            page: params.page || 1,
+            limit: params.limit || 50,
+          },
+          fromCache: true,
+          cacheSource: 'offline-cache',
+          isOffline: true,
+        }
+      }
     }
 
     // Fallback: university REST API
@@ -237,9 +335,9 @@ class GunService {
   }
 
   /**
-   * Create a new product (supports multi-image array).
+   * Create a new product (supports multi-image array and offline FIFO outbox queue).
    */
-  async createGun(data) {
+  async createGun(data, options = {}) {
     const imagesList = Array.isArray(data.images) && data.images.length > 0
       ? data.images
       : [data.image_url || '/guns/pistol.svg']
@@ -266,15 +364,55 @@ class GunService {
         specs: specsArray,
         image_url: imagesList[0] || null,
       }
-      const res = await apiClient.post('/rest/v1/products', payload, {
-        headers: { Prefer: 'return=representation' },
-      })
-      const created = Array.isArray(res) ? res[0] : res
-      if (created?.id && imagesList.length > 0) {
-        saveLocalGallery(created.id, imagesList)
+
+      // Offline handling: queue in Outbox FIFO
+      if (!navigator.onLine && !options.fromOutbox) {
+        const tempId = `offline-gun-${Date.now()}`
+        const offlineGun = normalizeProduct({
+          ...payload,
+          id: tempId,
+          images: imagesList,
+          created_at: new Date().toISOString(),
+          isOfflinePending: true,
+        })
+        saveOfflineGun(offlineGun)
+        outboxService.enqueue('CREATE_PRODUCT', {
+          supabasePayload: payload,
+          tempId,
+        })
+        return { success: true, data: offlineGun, isOffline: true }
       }
-      invalidateQueryCache('guns_')
-      return { success: true, data: normalizeProduct({ ...created, images: imagesList }) }
+
+      try {
+        const res = await apiClient.post('/rest/v1/products', payload, {
+          headers: { Prefer: 'return=representation' },
+        })
+        const created = Array.isArray(res) ? res[0] : res
+        if (created?.id && imagesList.length > 0) {
+          saveLocalGallery(created.id, imagesList)
+        }
+        invalidateQueryCache('guns_')
+        return { success: true, data: normalizeProduct({ ...created, images: imagesList }) }
+      } catch (err) {
+        if (!options.fromOutbox) {
+          // Fall back to offline queue on network error
+          const tempId = `offline-gun-${Date.now()}`
+          const offlineGun = normalizeProduct({
+            ...payload,
+            id: tempId,
+            images: imagesList,
+            created_at: new Date().toISOString(),
+            isOfflinePending: true,
+          })
+          saveOfflineGun(offlineGun)
+          outboxService.enqueue('CREATE_PRODUCT', {
+            supabasePayload: payload,
+            tempId,
+          })
+          return { success: true, data: offlineGun, isOffline: true }
+        }
+        throw err
+      }
     }
 
     const res = await apiClient.post('/api/v1/recipes', data)

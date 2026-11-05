@@ -335,6 +335,11 @@ export default function GunDetail({
                           Your Review
                         </span>
                       )}
+                      {rev.isPendingSync && (
+                        <span className="mono-badge" style={{ fontSize: '0.7rem', padding: '1px 6px', color: 'var(--brass)' }}>
+                          Pending Sync
+                        </span>
+                      )}
                     </div>
                     <span className="review-stars-display">
                       {Array.from({ length: 5 }, (_, i) => (

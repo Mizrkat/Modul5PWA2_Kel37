@@ -33,6 +33,9 @@ export function useReviews(gunId) {
 
   useEffect(() => {
     fetchReviews(false)
+    const handleSync = () => fetchReviews(true)
+    window.addEventListener('outbox-synced', handleSync)
+    return () => window.removeEventListener('outbox-synced', handleSync)
   }, [fetchReviews])
 
   const updateReview = async (reviewId, reviewData) => {
@@ -51,8 +54,8 @@ export function useReviews(gunId) {
     return res
   }
 
-  const reactToReview = (review, reactionType) => {
-    const updated = reviewService.toggleReaction(review, reactionType)
+  const reactToReview = async (review, reactionType) => {
+    const updated = await reviewService.toggleReaction(review, reactionType)
     setReviews((prev) =>
       prev.map((r) =>
         String(r.id) === String(review.id) ? { ...r, ...updated } : r,

@@ -6,6 +6,7 @@ import {
   AlertCircle,
   PackageOpen,
   Database,
+  WifiOff,
 } from 'lucide-react'
 import { useGuns } from '../hooks/useGuns'
 import GUNS_LOCAL from '../data/guns'
@@ -15,6 +16,7 @@ import AdvancedFilter from '../components/common/AdvancedFilter'
 import ConfirmModal from '../components/modals/ConfirmModal'
 import gunService from '../services/gunService'
 import archiveService from '../services/archiveService'
+import outboxService from '../services/outboxService'
 import {
   matchesSearch,
   matchesCategory,
@@ -29,12 +31,37 @@ export default function Catalog({ onNavigate }) {
   const [useLocal, setUseLocal] = useState(false)
   const [archiveVersion, setArchiveVersion] = useState(0)
   const [toastMsg, setToastMsg] = useState('')
+  const [pendingSyncCount, setPendingSyncCount] = useState(() =>
+    outboxService.getPendingCount(),
+  )
 
   useEffect(() => {
     const onArchiveChange = () => setArchiveVersion((v) => v + 1)
+    const onSync = (e) => {
+      refetch()
+      setPendingSyncCount(outboxService.getPendingCount())
+      if (e?.detail?.count) {
+        setToastMsg(`Online sync complete: ${e.detail.count} item(s) uploaded to database.`)
+        setTimeout(() => setToastMsg(''), 4000)
+      }
+    }
+    const onOutboxUpdate = () => {
+      setPendingSyncCount(outboxService.getPendingCount())
+      refetch()
+    }
+
     window.addEventListener('archive-updated', onArchiveChange)
-    return () => window.removeEventListener('archive-updated', onArchiveChange)
-  }, [])
+    window.addEventListener('outbox-synced', onSync)
+    window.addEventListener('outbox-updated', onOutboxUpdate)
+    window.addEventListener('offline-guns-updated', onOutboxUpdate)
+
+    return () => {
+      window.removeEventListener('archive-updated', onArchiveChange)
+      window.removeEventListener('outbox-synced', onSync)
+      window.removeEventListener('outbox-updated', onOutboxUpdate)
+      window.removeEventListener('offline-guns-updated', onOutboxUpdate)
+    }
+  }, [refetch])
 
   // Decide data source & filter out archived items
   const rawGuns = useMemo(() => {
@@ -113,9 +140,17 @@ export default function Catalog({ onNavigate }) {
 
       <section>
         <div className="list-head" style={{ flexWrap: 'wrap', gap: '10px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
             <h2>Current stock</h2>
-            {cacheInfo?.fromCache && (
+            {cacheInfo?.isOffline ? (
+              <span
+                className="mono-badge"
+                title="Application working offline with cached catalog data"
+                style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', color: 'var(--brass)' }}
+              >
+                <WifiOff size={12} /> Offline Mode (Cached)
+              </span>
+            ) : cacheInfo?.fromCache ? (
               <span
                 className="mono-badge"
                 title="Data served from API Query Cache & Image Disk Cache"
@@ -123,6 +158,15 @@ export default function Catalog({ onNavigate }) {
               >
                 <Database size={12} color="var(--brass)" /> Cached (
                 {cacheInfo.source})
+              </span>
+            ) : null}
+            {pendingSyncCount > 0 && (
+              <span
+                className="mono-badge"
+                title="Mutations pending offline synchronization"
+                style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', color: 'var(--brass)' }}
+              >
+                <RefreshCw size={12} className="spin" /> {pendingSyncCount} queued for sync
               </span>
             )}
           </div>

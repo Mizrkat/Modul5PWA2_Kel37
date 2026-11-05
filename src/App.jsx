@@ -7,6 +7,7 @@ import ConfirmModal from './components/modals/ConfirmModal.jsx'
 import SplashScreen from './components/common/SplashScreen.jsx'
 import gunService from './services/gunService.js'
 import archiveService from './services/archiveService.js'
+import outboxService from './services/outboxService.js'
 import GUNS_LOCAL from './data/guns.js'
 import './App.css'
 
@@ -68,6 +69,7 @@ function App() {
     }
 
     loadSharedGun()
+    outboxService.processQueue()
   }, [])
 
   // Sync URL query parameter when viewing product detail

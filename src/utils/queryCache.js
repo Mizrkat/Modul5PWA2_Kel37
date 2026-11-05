@@ -107,7 +107,11 @@ export const invalidateQueryCache = (prefix = '') => {
  */
 export const warmImageDiskCache = (payload) => {
   if (!payload || typeof window === 'undefined') return
-  const items = Array.isArray(payload) ? payload : [payload]
+  const items = Array.isArray(payload)
+    ? payload
+    : Array.isArray(payload.data)
+    ? payload.data
+    : [payload]
 
   items.forEach((item) => {
     if (!item || typeof item !== 'object') return

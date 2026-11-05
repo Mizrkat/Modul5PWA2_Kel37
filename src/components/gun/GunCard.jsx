@@ -51,6 +51,20 @@ export default function GunCard({
           <span className="card-desc">{truncate(gun.description, 72)}</span>
         )}
         <span className="price">{formatPrice(price)}</span>
+        {gun.isOfflinePending && (
+          <span
+            className="mono-badge"
+            style={{
+              alignSelf: 'flex-start',
+              marginTop: '4px',
+              color: 'var(--brass)',
+              fontSize: '0.72rem',
+              padding: '2px 6px',
+            }}
+          >
+            Queued for Sync
+          </span>
+        )}
       </button>
 
       {/* Floating actions row */}

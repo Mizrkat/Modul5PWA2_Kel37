@@ -314,10 +314,17 @@ export default function CreateGunPage({ onBack, onSuccess, initialDraftId }) {
       const response = await gunService.createGun(payload)
       if (response.success || response.data) {
         deleteDraft('create')
-        if (onSuccess) {
-          onSuccess(response.data)
-        } else if (onBack) {
-          onBack()
+        if (response.isOffline) {
+          setSuccessMsg(
+            'Hardware saved locally (Offline mode). It will be committed to database when back online.',
+          )
+          setTimeout(() => {
+            if (onSuccess) onSuccess(response.data)
+            else if (onBack) onBack()
+          }, 1200)
+        } else {
+          if (onSuccess) onSuccess(response.data)
+          else if (onBack) onBack()
         }
       } else {
         throw new Error(response.message || 'Failed to create product.')
