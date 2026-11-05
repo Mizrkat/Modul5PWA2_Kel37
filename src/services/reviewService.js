@@ -43,37 +43,6 @@ const writeReactionsMap = (map) => {
   }
 }
 
-/**
- * Default community reviews from other operators so users can test
- * Like (Thumbs Up) and Dislike (Thumbs Down) on reviews by other people.
- */
-const getSeedReviewsForProduct = (gunId) => [
-  {
-    id: `seed-${gunId}-1`,
-    product_id: gunId,
-    raw_user_id: 'operator-bravo-9921',
-    user_identifier: 'Operator Bravo-99',
-    rating: 5,
-    comment:
-      'Crisp trigger reset and zero malfunctions after 500 rounds on the range. Highly recommended.',
-    created_at: '2026-10-20T09:30:00.000Z',
-    base_likes: 4,
-    base_dislikes: 0,
-  },
-  {
-    id: `seed-${gunId}-2`,
-    product_id: gunId,
-    raw_user_id: 'operator-echo-4410',
-    user_identifier: 'Operator Echo-44',
-    rating: 4,
-    comment:
-      'Solid ergonomics and balanced weight distribution. Factory sights could be brighter in low light.',
-    created_at: '2026-10-18T14:15:00.000Z',
-    base_likes: 2,
-    base_dislikes: 1,
-  },
-]
-
 class ReviewService {
   /**
    * Enrich a review with reaction counts (likes, dislikes, userReaction) and ownership flag.
@@ -81,8 +50,8 @@ class ReviewService {
   enrichReview(r, currentUserId) {
     const reactionsMap = readReactionsMap()
     const entry = reactionsMap[String(r.id)] || {
-      likes: r.base_likes || 0,
-      dislikes: r.base_dislikes || 0,
+      likes: 0,
+      dislikes: 0,
       byUser: {},
     }
     const rawOwner = r.raw_user_id || r.user_id || r.owner_id || ''
@@ -104,8 +73,8 @@ class ReviewService {
       comment: r.comment || '',
       created_at: r.created_at || new Date().toISOString(),
       isOwn,
-      likes: entry.likes ?? (r.base_likes || 0),
-      dislikes: entry.dislikes ?? (r.base_dislikes || 0),
+      likes: entry.likes ?? 0,
+      dislikes: entry.dislikes ?? 0,
       userReaction: entry.byUser?.[currentUserId] || null, // 'like' | 'dislike' | null
     }
   }
@@ -166,7 +135,6 @@ class ReviewService {
     const combined = [
       ...(productLocal.added || []),
       ...serverList,
-      ...getSeedReviewsForProduct(gunId),
     ]
 
     const seenIds = new Set()
@@ -331,8 +299,8 @@ class ReviewService {
     const reactionsMap = readReactionsMap()
 
     const currentEntry = reactionsMap[reviewId] || {
-      likes: review.base_likes ?? review.likes ?? 0,
-      dislikes: review.base_dislikes ?? review.dislikes ?? 0,
+      likes: review.likes ?? 0,
+      dislikes: review.dislikes ?? 0,
       byUser: {},
     }
 

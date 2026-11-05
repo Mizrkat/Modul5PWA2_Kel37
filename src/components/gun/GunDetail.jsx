@@ -394,10 +394,52 @@ export default function GunDetail({
                     <>
                       {rev.comment && <p className="review-comment">{rev.comment}</p>}
 
-                      {/* Review Actions: Own review -> Edit & Delete; Other's review -> Like & Dislike */}
-                      <div className="review-actions-row" style={{ display: 'flex', alignItems: 'center', gap: '10px', marginTop: '8px' }}>
-                        {rev.isOwn ? (
-                          <>
+                      {/* Review Actions Row: like/dislike counts on left, edit/delete on right */}
+                      <div className="review-actions-row" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '10px', flexWrap: 'wrap', gap: '8px' }}>
+                        <div className="review-reactions" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          {rev.isOwn ? (
+                            <>
+                              <span
+                                className="reaction-btn reaction-btn--readonly"
+                                title="Likes received"
+                              >
+                                <ThumbsUp size={14} />
+                                <span>{rev.likes || 0}</span>
+                              </span>
+                              <span
+                                className="reaction-btn reaction-btn--readonly"
+                                title="Dislikes received"
+                              >
+                                <ThumbsDown size={14} />
+                                <span>{rev.dislikes || 0}</span>
+                              </span>
+                            </>
+                          ) : (
+                            <>
+                              <button
+                                type="button"
+                                className={`reaction-btn ${rev.userReaction === 'like' ? 'reaction-btn--active' : ''}`}
+                                onClick={() => reactToReview(rev, 'like')}
+                                title="Helpful review (Thumbs Up)"
+                              >
+                                <ThumbsUp size={14} />
+                                <span>{rev.likes || 0}</span>
+                              </button>
+                              <button
+                                type="button"
+                                className={`reaction-btn ${rev.userReaction === 'dislike' ? 'reaction-btn--dislike-active' : ''}`}
+                                onClick={() => reactToReview(rev, 'dislike')}
+                                title="Not helpful (Thumbs Down)"
+                              >
+                                <ThumbsDown size={14} />
+                                <span>{rev.dislikes || 0}</span>
+                              </button>
+                            </>
+                          )}
+                        </div>
+
+                        {rev.isOwn && (
+                          <div className="review-owner-actions" style={{ display: 'flex', alignItems: 'center', gap: '8px', marginLeft: 'auto' }}>
                             <button
                               type="button"
                               className="btn btn--outline btn--sm"
@@ -414,28 +456,7 @@ export default function GunDetail({
                             >
                               <Trash2 size={13} /> Delete
                             </button>
-                          </>
-                        ) : (
-                          <>
-                            <button
-                              type="button"
-                              className={`reaction-btn ${rev.userReaction === 'like' ? 'reaction-btn--active' : ''}`}
-                              onClick={() => reactToReview(rev, 'like')}
-                              title="Helpful review (Thumbs Up)"
-                            >
-                              <ThumbsUp size={14} />
-                              <span>{rev.likes || 0}</span>
-                            </button>
-                            <button
-                              type="button"
-                              className={`reaction-btn ${rev.userReaction === 'dislike' ? 'reaction-btn--dislike-active' : ''}`}
-                              onClick={() => reactToReview(rev, 'dislike')}
-                              title="Not helpful (Thumbs Down)"
-                            >
-                              <ThumbsDown size={14} />
-                              <span>{rev.dislikes || 0}</span>
-                            </button>
-                          </>
+                          </div>
                         )}
                       </div>
                     </>
