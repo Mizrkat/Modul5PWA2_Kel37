@@ -67,22 +67,17 @@ export default function Catalog({ onNavigate }) {
   const [deleting, setDeleting] = useState(false)
   const [deleteError, setDeleteError] = useState('')
 
-  const handleArchiveGun = (gun) => {
-    archiveService.archiveGun(gun)
-    setSelectedGun(null)
-    setArchiveVersion((v) => v + 1)
-    setToastMsg(`"${gun.name}" moved to Archive.`)
-    setTimeout(() => setToastMsg(''), 3000)
-  }
-
-  const handleDelete = async () => {
+  const handleDelete = () => {
     if (!deleteTarget) return
     try {
       setDeleting(true)
       setDeleteError('')
-      await gunService.deleteGun(deleteTarget.id)
+      archiveService.archiveGun(deleteTarget)
+      setToastMsg(`"${deleteTarget.name}" deleted and moved to Archive.`)
       setDeleteTarget(null)
-      refetch()
+      setSelectedGun(null)
+      setArchiveVersion((v) => v + 1)
+      setTimeout(() => setToastMsg(''), 3000)
     } catch (err) {
       setDeleteError(err.message || 'Failed to delete.')
     } finally {
@@ -100,7 +95,6 @@ export default function Catalog({ onNavigate }) {
           setSelectedGun(null)
           setDeleteTarget(g)
         }}
-        onArchive={handleArchiveGun}
       />
     )
   }
@@ -214,7 +208,6 @@ export default function Catalog({ onNavigate }) {
                 }
                 onEdit={onNavigate ? (g) => onNavigate('Edit', g) : undefined}
                 onDelete={setDeleteTarget}
-                onArchive={handleArchiveGun}
                 onShared={(url) => {
                   setToastMsg(`Share link copied: ${url}`)
                   setTimeout(() => setToastMsg(''), 3000)
@@ -227,8 +220,8 @@ export default function Catalog({ onNavigate }) {
 
       <ConfirmModal
         open={!!deleteTarget}
-        title="Delete Product"
-        message={`Are you sure you want to delete "${deleteTarget?.name}"? This action cannot be undone.`}
+        title="Delete Item"
+        message={`Are you sure you want to delete "${deleteTarget?.name}"? It will be moved to Archive where it can be restored or permanently deleted.`}
         confirmLabel="Delete"
         danger
         loading={deleting}

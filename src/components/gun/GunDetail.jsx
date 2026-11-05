@@ -10,7 +10,6 @@ import {
   ThumbsDown,
   Edit3,
   Trash2,
-  Archive,
   Check,
   X,
 } from 'lucide-react'
@@ -26,7 +25,6 @@ export default function GunDetail({
   onBack,
   onEdit,
   onDelete,
-  onArchive,
 }) {
   const images =
     Array.isArray(gun.images) && gun.images.length > 0
@@ -120,9 +118,11 @@ export default function GunDetail({
   }
 
   const handleDeleteOwnReview = async (reviewId) => {
-    await deleteReview(reviewId)
-    setReviewSuccess('Your review has been deleted.')
-    setTimeout(() => setReviewSuccess(''), 3000)
+    if (window.confirm('Delete this review permanently?')) {
+      await deleteReview(reviewId)
+      setReviewSuccess('Your review has been deleted.')
+      setTimeout(() => setReviewSuccess(''), 3000)
+    }
   }
 
   return (
@@ -212,15 +212,6 @@ export default function GunDetail({
 
           <div className="detail-actions" style={{ flexWrap: 'wrap' }}>
             <FavoriteButton gunId={gun.id || gun.name} />
-            {onArchive && (
-              <button
-                type="button"
-                className="btn btn--outline btn--sm"
-                onClick={() => onArchive(gun)}
-              >
-                <Archive size={15} /> Archive
-              </button>
-            )}
             {onEdit && (
               <button
                 type="button"

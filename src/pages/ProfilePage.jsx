@@ -205,14 +205,6 @@ export default function ProfilePage({
               )}
             </div>
           </div>
-
-          <button
-            type="button"
-            className="btn btn--outline btn--sm"
-            onClick={handleOpenEditModal}
-          >
-            <Edit3 size={14} /> Edit Profile
-          </button>
         </div>
 
         {/* Stats Grid */}

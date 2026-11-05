@@ -177,11 +177,6 @@ function App() {
               onBack={handleBackToList}
               onEdit={(g) => handleNavigate('Edit', g)}
               onDelete={(g) => setDeleteTarget(g)}
-              onArchive={(g) => {
-                archiveService.archiveGun(g)
-                handleBackToList()
-                setTab('Archive')
-              }}
             />
           )}
 
@@ -221,18 +216,18 @@ function App() {
       <ConfirmModal
         open={Boolean(deleteTarget)}
         title="Delete Hardware Record"
-        message={`Are you sure you want to delete "${deleteTarget?.name}"? This action cannot be undone.`}
+        message={`Are you sure you want to delete "${deleteTarget?.name}"? It will be moved to Archive where it can be restored or permanently deleted.`}
         confirmLabel="Delete"
         danger
         loading={deleting}
-        onConfirm={async () => {
+        onConfirm={() => {
           if (!deleteTarget) return
           try {
             setDeleting(true)
-            await gunService.deleteGun(deleteTarget.id)
+            archiveService.archiveGun(deleteTarget)
             setDeleteTarget(null)
             handleBackToList()
-            setTab('Catalog')
+            setTab('Archive')
           } catch (err) {
             console.error(err)
           } finally {

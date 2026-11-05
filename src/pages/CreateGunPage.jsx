@@ -335,16 +335,6 @@ export default function CreateGunPage({ onBack, onSuccess, initialDraftId }) {
         <button type="button" className="detail-back" onClick={onBack}>
           <ArrowLeft size={18} /> Back to Catalog
         </button>
-        <div className="form-head-actions">
-          <button
-            type="button"
-            className="btn btn--outline btn--sm"
-            onClick={() => handleSaveDraft(true)}
-            title="Save draft"
-          >
-            <Save size={14} /> Save Draft
-          </button>
-        </div>
       </div>
 
       <div className="form-title-group">
@@ -489,7 +479,16 @@ export default function CreateGunPage({ onBack, onSuccess, initialDraftId }) {
                 ))}
               </div>
 
-              <div className="preview-actions">
+              <div className="preview-actions" style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end', flexWrap: 'wrap' }}>
+                <button
+                  type="button"
+                  className="btn btn--outline btn--save-draft"
+                  onClick={() => handleSaveDraft(true)}
+                  disabled={uploading}
+                  title="Save draft"
+                >
+                  <Save size={16} /> Save Draft
+                </button>
                 <button
                   type="button"
                   className="btn btn--primary"
@@ -740,16 +739,25 @@ export default function CreateGunPage({ onBack, onSuccess, initialDraftId }) {
               Cancel
             </button>
             <button
+              type="button"
+              className="btn btn--outline btn--save-draft"
+              onClick={() => handleSaveDraft(true)}
+              disabled={creating}
+              title="Save draft"
+            >
+              <Save size={16} /> Save Draft
+            </button>
+            <button
               type="submit"
               className="btn btn--primary"
               disabled={creating}
             >
               {creating ? (
                 <>
-                  <Loader size={18} className="spin" /> Registering Hardware…
+                  <Loader size={18} className="spin" /> Uploading Item…
                 </>
               ) : (
-                'Commit to Armory'
+                'Upload Item'
               )}
             </button>
           </div>

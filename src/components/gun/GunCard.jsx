@@ -1,4 +1,4 @@
-import { Archive, Images } from 'lucide-react'
+import { Images } from 'lucide-react'
 import FavoriteButton from '../common/FavoriteButton'
 import ShareButton from '../common/ShareButton'
 import LazyImage from '../common/LazyImage'
@@ -9,7 +9,6 @@ export default function GunCard({
   onSelect,
   onEdit,
   onDelete,
-  onArchive,
   onShared,
 }) {
   const images =
@@ -58,20 +57,6 @@ export default function GunCard({
       <div className="card-actions">
         <ShareButton gun={gun} onShared={onShared} />
         <FavoriteButton gunId={gun.id || gun.name} />
-        {onArchive && (
-          <button
-            type="button"
-            className="card-act-btn"
-            onClick={(e) => {
-              e.stopPropagation()
-              onArchive(gun)
-            }}
-            aria-label={`Archive ${gun.name}`}
-            title="Move to Archive"
-          >
-            <Archive size={15} />
-          </button>
-        )}
         {onEdit && (
           <button
             type="button"

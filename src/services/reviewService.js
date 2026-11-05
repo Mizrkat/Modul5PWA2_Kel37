@@ -94,13 +94,12 @@ class ReviewService {
       id: r.id,
       product_id: r.product_id,
       raw_user_id: rawOwner,
-      user_identifier:
-        r.user_identifier ||
-        (rawOwner
-          ? isOwn
-            ? `${getUserProfile().username || 'Shooter'} (You)`
-            : `Operator ${String(rawOwner).substring(0, 8)}`
-          : 'Anonymous'),
+      user_identifier: isOwn
+        ? `${getUserProfile().username || 'Shooter'} (You)`
+        : (r.user_identifier ||
+            (rawOwner
+              ? `Operator ${String(rawOwner).substring(0, 8)}`
+              : 'Anonymous')),
       rating: Number(r.rating) || 5,
       comment: r.comment || '',
       created_at: r.created_at || new Date().toISOString(),
