@@ -1,5 +1,12 @@
-import { useState, useMemo } from 'react'
-import { RefreshCw, Plus, Loader, AlertCircle, PackageOpen } from 'lucide-react'
+import { useState, useMemo, useEffect } from 'react'
+import {
+  RefreshCw,
+  Plus,
+  Loader,
+  AlertCircle,
+  PackageOpen,
+  Database,
+} from 'lucide-react'
 import { useGuns } from '../hooks/useGuns'
 import GUNS_LOCAL from '../data/guns'
 import GunCard from '../components/gun/GunCard'
@@ -7,6 +14,7 @@ import GunDetail from '../components/gun/GunDetail'
 import AdvancedFilter from '../components/common/AdvancedFilter'
 import ConfirmModal from '../components/modals/ConfirmModal'
 import gunService from '../services/gunService'
+import archiveService from '../services/archiveService'
 import {
   matchesSearch,
   matchesCategory,
@@ -14,30 +22,32 @@ import {
   extractCategories,
 } from '../utils/helpers'
 
-/**
- * Catalog page — the main product listing.
- *
- * Data source priority:
- *   1. Live API via useGuns()
- *   2. Local static array (GUNS_LOCAL) when the API is unreachable
- *
- * Features: search, category filter, sort, CRUD actions, detail modal.
- */
 export default function Catalog({ onNavigate }) {
-  // ---- API data ----
-  const { guns: apiGuns, loading, error, refetch } = useGuns({ limit: 50 })
+  const { guns: apiGuns, loading, error, cacheInfo, refetch } = useGuns({
+    limit: 50,
+  })
   const [useLocal, setUseLocal] = useState(false)
+  const [archiveVersion, setArchiveVersion] = useState(0)
+  const [toastMsg, setToastMsg] = useState('')
 
-  // Decide data source
+  useEffect(() => {
+    const onArchiveChange = () => setArchiveVersion((v) => v + 1)
+    window.addEventListener('archive-updated', onArchiveChange)
+    return () => window.removeEventListener('archive-updated', onArchiveChange)
+  }, [])
+
+  // Decide data source & filter out archived items
   const rawGuns = useMemo(() => {
-    if (useLocal || (error && apiGuns.length === 0)) {
-      // Enrich local data with synthetic ids so FavoriteButton and detail work
-      return GUNS_LOCAL.map((g, i) => ({ ...g, id: g.id || `local-${i}` }))
-    }
-    return apiGuns
-  }, [apiGuns, error, useLocal])
+    const source =
+      useLocal || (error && apiGuns.length === 0)
+        ? GUNS_LOCAL.map((g, i) => ({ ...g, id: g.id || `local-${i}` }))
+        : apiGuns
 
-  // ---- filters / sort ----
+    return source.filter((g) => !archiveService.isArchived(g.id || g.name))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [apiGuns, error, useLocal, archiveVersion])
+
+  // Filters / sort
   const [search, setSearch] = useState('')
   const [activeCategory, setActiveCategory] = useState('All')
   const [sortKey, setSortKey] = useState('name')
@@ -46,19 +56,24 @@ export default function Catalog({ onNavigate }) {
   const categories = useMemo(() => extractCategories(rawGuns), [rawGuns])
 
   const filteredGuns = useMemo(() => {
-    let result = rawGuns.filter(
+    const result = rawGuns.filter(
       (g) => matchesSearch(g, search) && matchesCategory(g, activeCategory),
     )
     return sortItems(result, sortKey, sortOrder)
   }, [rawGuns, search, activeCategory, sortKey, sortOrder])
 
-  // ---- detail view ----
   const [selectedGun, setSelectedGun] = useState(null)
-
-  // ---- delete ----
   const [deleteTarget, setDeleteTarget] = useState(null)
   const [deleting, setDeleting] = useState(false)
   const [deleteError, setDeleteError] = useState('')
+
+  const handleArchiveGun = (gun) => {
+    archiveService.archiveGun(gun)
+    setSelectedGun(null)
+    setArchiveVersion((v) => v + 1)
+    setToastMsg(`"${gun.name}" moved to Archive.`)
+    setTimeout(() => setToastMsg(''), 3000)
+  }
 
   const handleDelete = async () => {
     if (!deleteTarget) return
@@ -75,19 +90,21 @@ export default function Catalog({ onNavigate }) {
     }
   }
 
-  // ---- If viewing a single product detail ----
   if (selectedGun) {
     return (
       <GunDetail
         gun={selectedGun}
         onBack={() => setSelectedGun(null)}
         onEdit={(g) => onNavigate && onNavigate('Edit', g)}
-        onDelete={(g) => { setSelectedGun(null); setDeleteTarget(g) }}
+        onDelete={(g) => {
+          setSelectedGun(null)
+          setDeleteTarget(g)
+        }}
+        onArchive={handleArchiveGun}
       />
     )
   }
 
-  // ---- Main catalog view ----
   return (
     <>
       <section className="masthead">
@@ -98,13 +115,35 @@ export default function Catalog({ onNavigate }) {
         </p>
       </section>
 
+      {toastMsg && <div className="toast toast--success">{toastMsg}</div>}
+
       <section>
-        <div className="list-head">
-          <h2>Current stock</h2>
+        <div className="list-head" style={{ flexWrap: 'wrap', gap: '10px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <h2>Current stock</h2>
+            {cacheInfo?.fromCache && (
+              <span
+                className="mono-badge"
+                title="Data served from API Query Cache & Image Disk Cache"
+                style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+              >
+                <Database size={12} color="var(--brass)" /> Cached (
+                {cacheInfo.source})
+              </span>
+            )}
+          </div>
           <div className="list-head-right">
             <span className="count">
               {filteredGuns.length} piece{filteredGuns.length !== 1 ? 's' : ''}
             </span>
+            <button
+              type="button"
+              className="btn btn--outline btn--sm"
+              onClick={refetch}
+              title="Force refresh API & update query cache"
+            >
+              <RefreshCw size={14} /> Refresh
+            </button>
             {onNavigate && (
               <button
                 type="button"
@@ -117,7 +156,6 @@ export default function Catalog({ onNavigate }) {
           </div>
         </div>
 
-        {/* Filters */}
         <AdvancedFilter
           search={search}
           onSearch={setSearch}
@@ -126,10 +164,12 @@ export default function Catalog({ onNavigate }) {
           onCategory={setActiveCategory}
           sortKey={sortKey}
           sortOrder={sortOrder}
-          onSort={({ key, order }) => { setSortKey(key); setSortOrder(order) }}
+          onSort={({ key, order }) => {
+            setSortKey(key)
+            setSortOrder(order)
+          }}
         />
 
-        {/* States */}
         {loading && (
           <div className="state-box">
             <Loader size={28} className="spin" />
@@ -163,36 +203,28 @@ export default function Catalog({ onNavigate }) {
           </div>
         )}
 
-        {/* Product grid */}
         {filteredGuns.length > 0 && (
           <ul className="stock">
             {filteredGuns.map((gun) => (
               <GunCard
                 key={gun.id || gun.name}
                 gun={gun}
-                onSelect={setSelectedGun}
+                onSelect={(g) =>
+                  onNavigate ? onNavigate('Detail', g) : setSelectedGun(g)
+                }
                 onEdit={onNavigate ? (g) => onNavigate('Edit', g) : undefined}
                 onDelete={setDeleteTarget}
+                onArchive={handleArchiveGun}
+                onShared={(url) => {
+                  setToastMsg(`Share link copied: ${url}`)
+                  setTimeout(() => setToastMsg(''), 3000)
+                }}
               />
             ))}
           </ul>
         )}
-
-        {useLocal && (
-          <p className="local-notice">
-            Showing local catalog (server unavailable).{' '}
-            <button
-              type="button"
-              className="link-btn"
-              onClick={() => { setUseLocal(false); refetch() }}
-            >
-              Retry server
-            </button>
-          </p>
-        )}
       </section>
 
-      {/* Delete confirmation */}
       <ConfirmModal
         open={!!deleteTarget}
         title="Delete Product"
@@ -201,11 +233,13 @@ export default function Catalog({ onNavigate }) {
         danger
         loading={deleting}
         onConfirm={handleDelete}
-        onCancel={() => { setDeleteTarget(null); setDeleteError('') }}
+        onCancel={() => {
+          setDeleteTarget(null)
+          setDeleteError('')
+        }}
       />
-      {deleteError && (
-        <div className="toast toast--error">{deleteError}</div>
-      )}
+
+      {deleteError && <div className="toast toast--error">{deleteError}</div>}
     </>
   )
 }

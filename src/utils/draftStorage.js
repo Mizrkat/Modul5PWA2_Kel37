@@ -1,14 +1,7 @@
 // ---------------------------------------------------------------------------
 // draftStorage.js — auto-save / restore form drafts via localStorage.
-//
-// Drafts are keyed by a string id:
-//   'create'              → the Create form
-//   '<uuid>'              → the Edit form for a specific product
-//
-// Each draft is stored under  `gun_draft_<id>`  and its companion
-// timestamp under  `gun_draft_<id>_ts`.
+// Supports listing all drafts in the Profile Page Drafts section.
 // ---------------------------------------------------------------------------
-
 const PREFIX = 'gun_draft_'
 const TS_SUFFIX = '_ts'
 
@@ -22,8 +15,12 @@ export const saveDraft = (draftData, draftId = 'create') => {
   try {
     const key = `${PREFIX}${draftId}`
     const ts = new Date().toISOString()
-    localStorage.setItem(key, JSON.stringify({ ...draftData, savedAt: ts }))
+    localStorage.setItem(
+      key,
+      JSON.stringify({ ...draftData, draftId: String(draftId), savedAt: ts }),
+    )
     localStorage.setItem(`${key}${TS_SUFFIX}`, ts)
+    window.dispatchEvent(new CustomEvent('drafts-updated'))
     return true
   } catch {
     return false
@@ -51,6 +48,7 @@ export const deleteDraft = (draftId = 'create') => {
     const key = `${PREFIX}${draftId}`
     localStorage.removeItem(key)
     localStorage.removeItem(`${key}${TS_SUFFIX}`)
+    window.dispatchEvent(new CustomEvent('drafts-updated'))
     return true
   } catch {
     return false
@@ -100,9 +98,54 @@ export const formatDraftTime = (timestamp) => {
  */
 export const getAllDraftIds = () => {
   try {
-    return Object.keys(localStorage)
-      .filter((k) => k.startsWith(PREFIX) && !k.endsWith(TS_SUFFIX))
-      .map((k) => k.slice(PREFIX.length))
+    const ids = []
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i)
+      if (k && k.startsWith(PREFIX) && !k.endsWith(TS_SUFFIX)) {
+        ids.push(k.slice(PREFIX.length))
+      }
+    }
+    return ids
+  } catch {
+    return []
+  }
+}
+
+/**
+ * Return full details of all saved drafts for the ProfilePage Drafts section.
+ */
+export const getAllDrafts = () => {
+  try {
+    const ids = getAllDraftIds()
+    return ids
+      .map((id) => {
+        const data = loadDraft(id)
+        if (!data) return null
+        const fd = data.formData || {}
+        const images =
+          Array.isArray(data.uploadedImages) && data.uploadedImages.length > 0
+            ? data.uploadedImages
+            : data.uploadedImageUrl
+            ? [data.uploadedImageUrl]
+            : data.imagePreview
+            ? [data.imagePreview]
+            : ['/guns/pistol.svg']
+        return {
+          draftId: id,
+          isCreate: id === 'create' || id.startsWith('create_'),
+          name: fd.name?.trim() || 'Untitled Hardware Draft',
+          type: fd.type || 'Pistol',
+          caliber: fd.caliber || '9mm',
+          price: Number(fd.price ?? 599),
+          description: fd.description || '',
+          image: images[0],
+          imagesCount: images.length,
+          savedAt: data.savedAt || getDraftTimestamp(id),
+          raw: data,
+        }
+      })
+      .filter(Boolean)
+      .sort((a, b) => new Date(b.savedAt || 0) - new Date(a.savedAt || 0))
   } catch {
     return []
   }

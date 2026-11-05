@@ -1,58 +1,61 @@
-const GUNS = [
+const GUNS_LOCAL = [
   {
-    name: 'Glock 17',
+    id: 'local-1',
+    name: 'Glock 19 Gen 5',
     type: 'Pistol',
-    caliber: '9mm',
+    caliber: '9mm Luger',
     price: 599,
-    image: '/guns/pistol.svg',
-    description:
-      'The duty pistol everything else is measured against. Polymer frame, 17-round magazine, striker-fired trigger. Safe, boring, and it always goes bang.',
+    description: 'Compact striker-fired service pistol with flared magwell, GMB barrel, and ambidextrous slide stop lever.',
+    image_url: '/guns/pistol.svg',
+    images: ['/guns/pistol.svg', '/guns/rifle.svg'],
+    ingredients: [
+      { id: 's1', name: 'Frame', quantity: 'Polymer' },
+      { id: 's2', name: 'Capacity', quantity: '15+1 Rounds' },
+      { id: 's3', name: 'Barrel Length', quantity: '4.02 in' },
+    ],
+    steps: [
+      'Remove magazine and visually/physically inspect chamber.',
+      'Pull trigger in safe direction, pull down slide lock, and slide assembly forward.',
+    ],
   },
   {
-    name: 'AK-47',
+    id: 'local-2',
+    name: 'Colt M4A1 Carbine',
     type: 'Rifle',
-    caliber: '7.62mm',
-    price: 899,
-    image: '/guns/rifle.svg',
-    description:
-      'Gas-operated, loose tolerances, and famously indifferent to mud. Seven decades of service and still the benchmark for a rifle that will not quit.',
+    caliber: '5.56x45mm NATO',
+    price: 1299,
+    description: 'Direct-impingement gas-operated carbine with chrome-lined 14.5-inch barrel and Picatinny flat-top receiver.',
+    image_url: '/guns/rifle.svg',
+    images: ['/guns/rifle.svg', '/guns/shotgun.svg'],
+    ingredients: [
+      { id: 's1', name: 'Receiver', quantity: '7075-T6 Aluminum' },
+      { id: 's2', name: 'Twist Rate', quantity: '1:7 RH' },
+      { id: 's3', name: 'Weight', quantity: '6.9 lbs' },
+    ],
+    steps: [
+      'Clear weapon, push takedown pin, and pivot upper receiver.',
+      'Withdraw bolt carrier group and charging handle for lubrication.',
+    ],
   },
   {
-    name: 'Remington 870',
+    id: 'local-3',
+    name: 'Benelli M4 Tactical',
     type: 'Shotgun',
     caliber: '12 Gauge',
-    price: 449,
-    image: '/guns/shotgun.svg',
-    description:
-      'Pump-action workhorse. Five shells in the tube, a receiver that has taken more abuse than most trucks, and a sound that ends arguments.',
-  },
-  {
-    name: 'AR-15',
-    type: 'Rifle',
-    caliber: '5.56mm',
-    price: 799,
-    image: '/guns/rifle.svg',
-    description:
-      'Light-recoiling, endlessly modular, and accurate well past the range most shooters can hold. The platform you can rebuild with one tool.',
-  },
-  {
-    name: 'Desert Eagle',
-    type: 'Pistol',
-    caliber: '.50 AE',
-    price: 1599,
-    image: '/guns/pistol.svg',
-    description:
-      'Gas-operated hand cannon. Three and a half pounds of chromed steel that fires a round most pistols would refuse. Subtle it is not.',
-  },
-  {
-    name: 'Mossberg 500',
-    type: 'Shotgun',
-    caliber: '12 Gauge',
-    price: 399,
-    image: '/guns/shotgun.svg',
-    description:
-      'The other pump gun. Twin action bars, a simple safety on the tang, and a price that leaves money for ammunition.',
+    price: 1999,
+    description: 'Auto-Regulating Gas-Operated (A.R.G.O.) combat shotgun with ghost-ring sights and Picatinny optics rail.',
+    image_url: '/guns/shotgun.svg',
+    images: ['/guns/shotgun.svg', '/guns/pistol.svg'],
+    ingredients: [
+      { id: 's1', name: 'System', quantity: 'A.R.G.O. Dual Piston' },
+      { id: 's2', name: 'Barrel Length', quantity: '18.5 in' },
+      { id: 's3', name: 'Capacity', quantity: '5+1 Shells' },
+    ],
+    steps: [
+      'Ensure magazine tube and chamber are completely clear.',
+      'Unscrew forend cap and remove barrel assembly from receiver.',
+    ],
   },
 ]
 
-export default GUNS
+export default GUNS_LOCAL

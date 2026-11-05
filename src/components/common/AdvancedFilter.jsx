@@ -1,18 +1,5 @@
 import { Search, SlidersHorizontal } from 'lucide-react'
 
-/**
- * Search bar + category pills + sort dropdown.
- *
- * @param {Object}   props
- * @param {string}   props.search        — current search query
- * @param {Function} props.onSearch      — (value) => void
- * @param {string[]} props.categories    — e.g. ['All','Pistol','Rifle','Shotgun']
- * @param {string}   props.activeCategory
- * @param {Function} props.onCategory    — (value) => void
- * @param {string}   props.sortKey       — 'name' | 'price'
- * @param {string}   props.sortOrder     — 'asc' | 'desc'
- * @param {Function} props.onSort        — ({ key, order }) => void
- */
 export default function AdvancedFilter({
   search,
   onSearch,
@@ -25,7 +12,6 @@ export default function AdvancedFilter({
 }) {
   return (
     <div className="adv-filter">
-      {/* Search */}
       <div className="adv-filter__search">
         <Search size={16} className="adv-filter__icon" />
         <input
@@ -38,7 +24,6 @@ export default function AdvancedFilter({
         />
       </div>
 
-      {/* Category pills */}
       <div className="adv-filter__pills">
         {categories.map((cat) => (
           <button
@@ -52,7 +37,6 @@ export default function AdvancedFilter({
         ))}
       </div>
 
-      {/* Sort */}
       <div className="adv-filter__sort">
         <SlidersHorizontal size={14} />
         <select

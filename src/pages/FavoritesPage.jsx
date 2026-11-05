@@ -4,19 +4,14 @@ import { useFavorites } from '../hooks/useFavorites'
 import { useGuns } from '../hooks/useGuns'
 import GUNS_LOCAL from '../data/guns'
 import GunCard from '../components/gun/GunCard'
+import archiveService from '../services/archiveService'
 
-/**
- * FavoritesPage — Displays user's shortlisted / favorited weapons.
- * Supports dual-mode (server API + localStorage fallback).
- */
 export default function FavoritesPage({ onSelectGun, onNavigateCatalog }) {
   const { favorites, loading: favLoading, error: favError, refetch } = useFavorites()
   const { guns: apiGuns } = useGuns({ limit: 100 })
 
-  // All known guns catalog for fallback item lookup
   const allKnownGuns = useMemo(() => {
     const map = new Map()
-    // Local catalog
     GUNS_LOCAL.forEach((g, idx) => {
       const id = g.id || `local-${idx}`
       const enriched = { ...g, id }
@@ -24,7 +19,6 @@ export default function FavoritesPage({ onSelectGun, onNavigateCatalog }) {
       map.set(String(id), enriched)
       if (g.name) map.set(g.name, enriched)
     })
-    // API catalog
     apiGuns.forEach((g) => {
       if (g.id !== undefined && g.id !== null) {
         map.set(g.id, g)
@@ -35,15 +29,17 @@ export default function FavoritesPage({ onSelectGun, onNavigateCatalog }) {
     return map
   }, [apiGuns])
 
-  // Resolve favorited products
   const favoriteItems = useMemo(() => {
-    // 1. If backend returned full objects in favorites array:
     const resolved = []
     const seen = new Set()
-
     favorites.forEach((fav) => {
-      const id = fav.id || fav.recipe_id || fav.gun_id
-      const match = allKnownGuns.get(id) || allKnownGuns.get(fav.name) || (fav.name ? fav : null)
+      const id = fav.id || fav.recipe_id || fav.gun_id || fav
+      if (archiveService.isArchived(id)) return
+      const match =
+        allKnownGuns.get(id) ||
+        allKnownGuns.get(String(id)) ||
+        allKnownGuns.get(fav.name) ||
+        (fav.name ? fav : null)
       if (match && !seen.has(match.id || match.name)) {
         seen.add(match.id || match.name)
         resolved.push(match)
@@ -58,7 +54,6 @@ export default function FavoritesPage({ onSelectGun, onNavigateCatalog }) {
         })
       }
     })
-
     return resolved
   }, [favorites, allKnownGuns])
 

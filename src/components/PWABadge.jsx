@@ -1,9 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Download, WifiOff, X } from 'lucide-react'
 
-/**
- * PWABadge — Progressive Web App installation prompt & offline status indicator.
- */
 export default function PWABadge() {
   const [installPrompt, setInstallPrompt] = useState(null)
   const [isOffline, setIsOffline] = useState(!navigator.onLine)
@@ -11,17 +8,14 @@ export default function PWABadge() {
   const [dismissed, setDismissed] = useState(false)
 
   useEffect(() => {
-    // Capture PWA install prompt
     const handleBeforeInstall = (e) => {
       e.preventDefault()
       setInstallPrompt(e)
     }
-
     const handleAppInstalled = () => {
       setInstalled(true)
       setInstallPrompt(null)
     }
-
     const handleOnline = () => setIsOffline(false)
     const handleOffline = () => setIsOffline(true)
 
@@ -50,7 +44,6 @@ export default function PWABadge() {
 
   if (dismissed) return null
 
-  // Offline status banner
   if (isOffline) {
     return (
       <aside className="pwa-badge pwa-badge--offline" role="status" aria-live="polite">
@@ -60,13 +53,14 @@ export default function PWABadge() {
     )
   }
 
-  // Install PWA banner
   if (installPrompt && !installed) {
     return (
       <aside className="pwa-badge" role="region" aria-label="Install App">
         <div className="pwa-badge-content">
           <Download size={16} stroke="var(--brass)" />
-          <span>Install <strong>Bore &amp; Barrel</strong> for offline access.</span>
+          <span>
+            Install <strong>Bore &amp; Barrel</strong> for offline access.
+          </span>
         </div>
         <div className="pwa-badge-actions">
           <button

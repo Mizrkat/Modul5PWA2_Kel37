@@ -9,7 +9,6 @@ const SUPABASE_KEY =
   import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY ||
   import.meta.env.VITE_SUPABASE_ANON_KEY ||
   ''
-
 const IS_SUPABASE =
   BASE_URL.includes('supabase.co') || Boolean(SUPABASE_KEY)
 
@@ -54,7 +53,6 @@ apiClient.interceptors.response.use(
   (error) => {
     let message = 'An unexpected error occurred'
     let status = null
-
     if (error.response) {
       status = error.response.status
       message =
@@ -69,7 +67,6 @@ apiClient.interceptors.response.use(
     } else {
       message = error.message || message
     }
-
     return Promise.reject({
       message,
       status,

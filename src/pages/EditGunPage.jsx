@@ -21,10 +21,6 @@ import {
 } from '../utils/draftStorage'
 import ConfirmModal from '../components/modals/ConfirmModal'
 
-/**
- * EditGunPage — Edit an existing weapon / hardware item.
- * Supports updating specs, steps, image replacement, and draft management.
- */
 export default function EditGunPage({ gun, gunId, onBack, onSuccess }) {
   const targetId = gunId || gun?.id
 
@@ -45,27 +41,26 @@ export default function EditGunPage({ gun, gunId, onBack, onSuccess }) {
     is_featured: false,
   })
 
-  const [currentImageUrl, setCurrentImageUrl] = useState('')
-  const [imageFile, setImageFile] = useState(null)
-  const [imagePreview, setImagePreview] = useState(null)
+  // Multi-image list
+  const [images, setImages] = useState([])
+  const [pendingFiles, setPendingFiles] = useState([])
   const [uploading, setUploading] = useState(false)
 
-  // Specs & Steps
   const [specs, setSpecs] = useState([{ name: '', quantity: '' }])
   const [steps, setSteps] = useState([''])
 
-  // Draft modal
-  const [showDraftModal, setShowDraftModal] = useState(() => (targetId ? hasDraft(targetId) : false))
-  const [draftTimestamp, setDraftTimestamp] = useState(() => (targetId ? getDraftTimestamp(targetId) : null))
+  const [showDraftModal, setShowDraftModal] = useState(() =>
+    targetId ? hasDraft(targetId) : false,
+  )
+  const [draftTimestamp, setDraftTimestamp] = useState(() =>
+    targetId ? getDraftTimestamp(targetId) : null,
+  )
 
-  // Fetch initial data
   useEffect(() => {
     const fetchGun = async () => {
       try {
         setLoading(true)
         setError('')
-
-        // If gun was passed directly and has full details, use it; else fetch from API
         let data = gun
         if (!data || !data.ingredients || !data.steps) {
           if (targetId && !String(targetId).startsWith('local-')) {
@@ -75,7 +70,6 @@ export default function EditGunPage({ gun, gunId, onBack, onSuccess }) {
             }
           }
         }
-
         if (data) {
           setFormData({
             name: data.name || '',
@@ -88,13 +82,19 @@ export default function EditGunPage({ gun, gunId, onBack, onSuccess }) {
             servings: data.servings || 1,
             is_featured: Boolean(data.is_featured),
           })
-          setCurrentImageUrl(data.image_url || data.image || '/guns/pistol.svg')
+          const initialImgs =
+            Array.isArray(data.images) && data.images.length > 0
+              ? data.images
+              : [data.image_url || data.image || '/guns/pistol.svg']
+          setImages(initialImgs)
 
           if (data.ingredients && data.ingredients.length > 0) {
-            setSpecs(data.ingredients.map((ing) => ({
-              name: ing.name || '',
-              quantity: ing.quantity || '',
-            })))
+            setSpecs(
+              data.ingredients.map((ing) => ({
+                name: ing.name || '',
+                quantity: ing.quantity || '',
+              })),
+            )
           } else {
             setSpecs([
               { name: 'Platform', quantity: data.type || 'Pistol' },
@@ -103,11 +103,14 @@ export default function EditGunPage({ gun, gunId, onBack, onSuccess }) {
           }
 
           if (data.steps && data.steps.length > 0) {
-            setSteps(data.steps.map((st) => (typeof st === 'string' ? st : st.instruction || '')))
+            setSteps(
+              data.steps.map((st) =>
+                typeof st === 'string' ? st : st.instruction || '',
+              ),
+            )
           } else {
             setSteps(['Standard manufacturer maintenance and cleaning protocol.'])
           }
-
         } else {
           setError('Hardware record could not be loaded.')
         }
@@ -118,21 +121,18 @@ export default function EditGunPage({ gun, gunId, onBack, onSuccess }) {
       }
     }
 
-    if (targetId) {
-      fetchGun()
-    }
+    if (targetId) fetchGun()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [targetId])
 
-  // Draft operations
   const handleLoadDraft = () => {
     const draft = loadDraft(targetId)
     if (draft) {
       if (draft.formData) setFormData(draft.formData)
       if (draft.specs) setSpecs(draft.specs)
       if (draft.steps) setSteps(draft.steps)
-      if (draft.imagePreview) {
-        setImagePreview(draft.imagePreview)
+      if (Array.isArray(draft.uploadedImages) && draft.uploadedImages.length > 0) {
+        setImages(draft.uploadedImages)
       }
       setShowDraftModal(false)
       setSuccessMsg('Saved draft restored.')
@@ -151,7 +151,8 @@ export default function EditGunPage({ gun, gunId, onBack, onSuccess }) {
       formData,
       specs,
       steps,
-      imagePreview: imagePreview || currentImageUrl,
+      uploadedImages: images,
+      imagePreview: images[0],
     }
     const saved = saveDraft(draftData, targetId)
     if (saved) {
@@ -162,50 +163,60 @@ export default function EditGunPage({ gun, gunId, onBack, onSuccess }) {
     }
   }
 
-  // Handle new image file
   const handleImageChange = (e) => {
-    const file = e.target.files[0]
-    if (!file) return
-
-    if (file.size > 5 * 1024 * 1024) {
-      setError('File size exceeds 5MB limit.')
-      return
-    }
-
+    const files = Array.from(e.target.files || [])
+    if (files.length === 0) return
     const allowed = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp']
-    if (!allowed.includes(file.type)) {
-      setError('Allowed formats: .jpg, .jpeg, .png, .webp')
-      return
+    const valid = []
+    for (const file of files) {
+      if (file.size > 5 * 1024 * 1024) {
+        setError(`"${file.name}" exceeds 5MB limit.`)
+        continue
+      }
+      if (!allowed.includes(file.type)) {
+        setError(`"${file.name}" has an unsupported format.`)
+        continue
+      }
+      valid.push(file)
     }
-
-    setImageFile(file)
-    setImagePreview(URL.createObjectURL(file))
-    setError('')
+    if (valid.length > 0) {
+      setPendingFiles((prev) => [...prev, ...valid])
+      setImages((prev) => [
+        ...prev,
+        ...valid.map((f) => URL.createObjectURL(f)),
+      ])
+      setError('')
+    }
   }
 
-  const handleUploadNewImage = async () => {
-    if (!imageFile) return
+  const handleUploadPendingImages = async () => {
+    if (pendingFiles.length === 0) return
     try {
       setUploading(true)
-      const res = await uploadService.uploadImage(imageFile)
-      if (res.success && res.data?.url) {
-        setCurrentImageUrl(res.data.url)
-        setImageFile(null)
-        setImagePreview(null)
-        setSuccessMsg('New image uploaded successfully.')
+      const res = await uploadService.uploadMultipleImages(pendingFiles)
+      if (res.success && res.data.length > 0) {
+        const uploadedUrls = res.data.map((d) => d.url)
+        setImages((prev) => {
+          const nonBlob = prev.filter((u) => !u.startsWith('blob:'))
+          return [...nonBlob, ...uploadedUrls]
+        })
+        setPendingFiles([])
+        setSuccessMsg('Images uploaded to storage.')
         setTimeout(() => setSuccessMsg(''), 3000)
       }
     } catch (err) {
-      console.warn('Image upload failed, using local blob:', err)
-      setCurrentImageUrl(imagePreview)
-      setImageFile(null)
-      setImagePreview(null)
+      console.warn('Multi-upload fallback to local preview:', err)
+      setPendingFiles([])
     } finally {
       setUploading(false)
     }
   }
 
-  // Specs & Steps
+  const removeImageAt = (index) => {
+    if (images.length <= 1) return
+    setImages((prev) => prev.filter((_, i) => i !== index))
+  }
+
   const handleSpecChange = (index, field, value) => {
     setSpecs((prev) => {
       const copy = [...prev]
@@ -213,7 +224,6 @@ export default function EditGunPage({ gun, gunId, onBack, onSuccess }) {
       return copy
     })
   }
-
   const addSpec = () => setSpecs((prev) => [...prev, { name: '', quantity: '' }])
   const removeSpec = (index) => {
     if (specs.length <= 1) return
@@ -227,14 +237,12 @@ export default function EditGunPage({ gun, gunId, onBack, onSuccess }) {
       return copy
     })
   }
-
   const addStep = () => setSteps((prev) => [...prev, ''])
   const removeStep = (index) => {
     if (steps.length <= 1) return
     setSteps((prev) => prev.filter((_, i) => i !== index))
   }
 
-  // Submit update
   const handleSubmit = async (e) => {
     e.preventDefault()
     setError('')
@@ -251,28 +259,19 @@ export default function EditGunPage({ gun, gunId, onBack, onSuccess }) {
         quantity: s.quantity.trim() || 'Standard',
       }))
 
-    if (cleanSpecs.length === 0) {
-      setError('Please provide at least one specification.')
-      return
-    }
+    const cleanSteps = steps.filter((s) => s.trim()).map((s) => s.trim())
 
-    const cleanSteps = steps
-      .filter((s) => s.trim())
-      .map((s) => s.trim())
-
-    if (cleanSteps.length === 0) {
-      setError('Please provide at least one maintenance step.')
-      return
-    }
+    const finalImages = images.length > 0 ? images : ['/guns/pistol.svg']
 
     const payload = {
       name: formData.name.trim(),
-      type: formData.type || (formData.category === 'minuman' ? 'Rifle' : 'Pistol'),
+      type: formData.type,
       caliber: formData.caliber || '9mm',
       price: Number(formData.price) || 500,
       category: formData.category || 'makanan',
-      description: formData.description.trim() || `${formData.type} caliber ${formData.caliber}.`,
-      image_url: imagePreview || currentImageUrl || '/guns/pistol.svg',
+      description: formData.description.trim(),
+      image_url: finalImages[0],
+      images: finalImages,
       prep_time: 15,
       cook_time: Number(formData.price) || 500,
       servings: Number(formData.servings) || 1,
@@ -287,11 +286,8 @@ export default function EditGunPage({ gun, gunId, onBack, onSuccess }) {
       const res = await gunService.updateGun(targetId, payload)
       if (res.success || res.data) {
         deleteDraft(targetId)
-        if (onSuccess) {
-          onSuccess(res.data)
-        } else if (onBack) {
-          onBack()
-        }
+        if (onSuccess) onSuccess(res.data)
+        else if (onBack) onBack()
       } else {
         throw new Error(res.message || 'Failed to update record on server.')
       }
@@ -313,7 +309,6 @@ export default function EditGunPage({ gun, gunId, onBack, onSuccess }) {
 
   return (
     <div className="form-page">
-      {/* Head */}
       <div className="form-head">
         <button type="button" className="detail-back" onClick={onBack}>
           <ArrowLeft size={18} /> Back
@@ -322,7 +317,6 @@ export default function EditGunPage({ gun, gunId, onBack, onSuccess }) {
           type="button"
           className="btn btn--outline btn--sm"
           onClick={handleManualSaveDraft}
-          title="Save draft"
         >
           <Save size={14} /> Save Draft
         </button>
@@ -347,44 +341,74 @@ export default function EditGunPage({ gun, gunId, onBack, onSuccess }) {
       )}
 
       <form onSubmit={handleSubmit} className="entry-form">
-        {/* Imagery Section */}
+        {/* Multi-Imagery Section */}
         <div className="card-box">
-          <h2 className="card-box-title">Visual Asset</h2>
-          <div className="edit-img-wrap">
-            <img
-              src={imagePreview || currentImageUrl}
-              alt="Current hardware"
-              className="edit-current-img"
-            />
-            <div className="edit-img-controls">
-              <input
-                id="edit-gun-image"
-                type="file"
-                accept="image/jpeg,image/jpg,image/png,image/webp"
-                onChange={handleImageChange}
-                className="hidden-file-input"
-              />
-              <label htmlFor="edit-gun-image" className="btn btn--outline btn--sm">
-                <Upload size={14} /> Select New Image File
-              </label>
+          <h2 className="card-box-title">Visual Assets ({images.length})</h2>
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))',
+              gap: '12px',
+              marginBottom: '14px',
+            }}
+          >
+            {images.map((imgUrl, idx) => (
+              <div
+                key={idx}
+                style={{
+                  position: 'relative',
+                  height: '100px',
+                  border: '1px solid var(--line)',
+                  borderRadius: '4px',
+                  overflow: 'hidden',
+                }}
+              >
+                <img
+                  src={imgUrl}
+                  alt={`Asset ${idx + 1}`}
+                  style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                />
+                {images.length > 1 && (
+                  <button
+                    type="button"
+                    className="preview-remove-btn"
+                    onClick={() => removeImageAt(idx)}
+                  >
+                    <X size={14} />
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
 
-              {imageFile && (
-                <button
-                  type="button"
-                  className="btn btn--primary btn--sm"
-                  onClick={handleUploadNewImage}
-                  disabled={uploading}
-                >
-                  {uploading ? (
-                    <>
-                      <Loader size={14} className="spin" /> Uploading…
-                    </>
-                  ) : (
-                    'Upload to MinIO'
-                  )}
-                </button>
-              )}
-            </div>
+          <div className="edit-img-controls" style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
+            <input
+              id="edit-gun-images"
+              type="file"
+              multiple
+              accept="image/jpeg,image/jpg,image/png,image/webp"
+              onChange={handleImageChange}
+              className="hidden-file-input"
+            />
+            <label htmlFor="edit-gun-images" className="btn btn--outline btn--sm">
+              <Upload size={14} /> Add More Images
+            </label>
+            {pendingFiles.length > 0 && (
+              <button
+                type="button"
+                className="btn btn--primary btn--sm"
+                onClick={handleUploadPendingImages}
+                disabled={uploading}
+              >
+                {uploading ? (
+                  <>
+                    <Loader size={14} className="spin" /> Uploading…
+                  </>
+                ) : (
+                  `Upload ${pendingFiles.length} New File(s)`
+                )}
+              </button>
+            )}
           </div>
         </div>
 
@@ -397,9 +421,10 @@ export default function EditGunPage({ gun, gunId, onBack, onSuccess }) {
             <input
               id="edit-name"
               type="text"
-              name="name"
               value={formData.name}
-              onChange={(e) => setFormData((p) => ({ ...p, name: e.target.value }))}
+              onChange={(e) =>
+                setFormData((p) => ({ ...p, name: e.target.value }))
+              }
               className="form-input"
               required
             />
@@ -411,7 +436,6 @@ export default function EditGunPage({ gun, gunId, onBack, onSuccess }) {
             </label>
             <select
               id="edit-type"
-              name="type"
               value={formData.type}
               onChange={(e) =>
                 setFormData((p) => ({
@@ -433,14 +457,15 @@ export default function EditGunPage({ gun, gunId, onBack, onSuccess }) {
         <div className="form-grid form-grid--3">
           <div className="form-group">
             <label htmlFor="edit-caliber" className="form-label">
-              Caliber / Chambering <span className="req">*</span>
+              Caliber <span className="req">*</span>
             </label>
             <input
               id="edit-caliber"
               type="text"
-              name="caliber"
               value={formData.caliber}
-              onChange={(e) => setFormData((p) => ({ ...p, caliber: e.target.value }))}
+              onChange={(e) =>
+                setFormData((p) => ({ ...p, caliber: e.target.value }))
+              }
               className="form-input"
               required
             />
@@ -453,9 +478,10 @@ export default function EditGunPage({ gun, gunId, onBack, onSuccess }) {
             <input
               id="edit-price"
               type="number"
-              name="price"
               value={formData.price}
-              onChange={(e) => setFormData((p) => ({ ...p, price: e.target.value }))}
+              onChange={(e) =>
+                setFormData((p) => ({ ...p, price: e.target.value }))
+              }
               className="form-input"
               min="0"
               required
@@ -464,13 +490,14 @@ export default function EditGunPage({ gun, gunId, onBack, onSuccess }) {
 
           <div className="form-group">
             <label htmlFor="edit-difficulty" className="form-label">
-              Grade / Build Quality <span className="req">*</span>
+              Grade <span className="req">*</span>
             </label>
             <select
               id="edit-difficulty"
-              name="difficulty"
               value={formData.difficulty}
-              onChange={(e) => setFormData((p) => ({ ...p, difficulty: e.target.value }))}
+              onChange={(e) =>
+                setFormData((p) => ({ ...p, difficulty: e.target.value }))
+              }
               className="form-select"
             >
               <option value="mudah">Commercial / Standard</option>
@@ -486,9 +513,10 @@ export default function EditGunPage({ gun, gunId, onBack, onSuccess }) {
           </label>
           <textarea
             id="edit-desc"
-            name="description"
             value={formData.description}
-            onChange={(e) => setFormData((p) => ({ ...p, description: e.target.value }))}
+            onChange={(e) =>
+              setFormData((p) => ({ ...p, description: e.target.value }))
+            }
             rows={3}
             className="form-textarea"
           />
@@ -498,7 +526,11 @@ export default function EditGunPage({ gun, gunId, onBack, onSuccess }) {
         <div className="form-fieldset">
           <div className="fieldset-header">
             <label className="form-label">Specifications &amp; Components</label>
-            <button type="button" className="btn btn--outline btn--sm" onClick={addSpec}>
+            <button
+              type="button"
+              className="btn btn--outline btn--sm"
+              onClick={addSpec}
+            >
               <Plus size={14} /> Add Spec
             </button>
           </div>
@@ -507,16 +539,16 @@ export default function EditGunPage({ gun, gunId, onBack, onSuccess }) {
               <div key={i} className="multi-row">
                 <input
                   type="text"
-                  placeholder="Attribute"
                   value={spec.name}
                   onChange={(e) => handleSpecChange(i, 'name', e.target.value)}
                   className="form-input"
                 />
                 <input
                   type="text"
-                  placeholder="Value"
                   value={spec.quantity}
-                  onChange={(e) => handleSpecChange(i, 'quantity', e.target.value)}
+                  onChange={(e) =>
+                    handleSpecChange(i, 'quantity', e.target.value)
+                  }
                   className="form-input"
                 />
                 <button
@@ -536,7 +568,11 @@ export default function EditGunPage({ gun, gunId, onBack, onSuccess }) {
         <div className="form-fieldset">
           <div className="fieldset-header">
             <label className="form-label">Assembly &amp; Maintenance Protocol</label>
-            <button type="button" className="btn btn--outline btn--sm" onClick={addStep}>
+            <button
+              type="button"
+              className="btn btn--outline btn--sm"
+              onClick={addStep}
+            >
               <Plus size={14} /> Add Step
             </button>
           </div>
@@ -563,27 +599,20 @@ export default function EditGunPage({ gun, gunId, onBack, onSuccess }) {
           </div>
         </div>
 
-        {/* Featured */}
-        <div className="checkbox-row">
-          <input
-            id="edit-is-featured"
-            type="checkbox"
-            name="is_featured"
-            checked={formData.is_featured}
-            onChange={(e) => setFormData((p) => ({ ...p, is_featured: e.target.checked }))}
-            className="form-checkbox"
-          />
-          <label htmlFor="edit-is-featured" className="checkbox-label">
-            Feature in Armory Showcase
-          </label>
-        </div>
-
-        {/* Submit */}
         <div className="form-actions-bar">
-          <button type="button" className="btn btn--outline" onClick={onBack} disabled={updating}>
+          <button
+            type="button"
+            className="btn btn--outline"
+            onClick={onBack}
+            disabled={updating}
+          >
             Cancel
           </button>
-          <button type="submit" className="btn btn--primary" disabled={updating}>
+          <button
+            type="submit"
+            className="btn btn--primary"
+            disabled={updating}
+          >
             {updating ? (
               <>
                 <Loader size={18} className="spin" /> Updating Record…
@@ -595,11 +624,12 @@ export default function EditGunPage({ gun, gunId, onBack, onSuccess }) {
         </div>
       </form>
 
-      {/* Restore draft dialog */}
       <ConfirmModal
         open={showDraftModal}
         title="Resume Unsaved Changes?"
-        message={`An unsaved draft for this product was saved on ${draftTimestamp ? formatDraftTime(draftTimestamp) : 'earlier'}. Would you like to restore it?`}
+        message={`An unsaved draft for this product was saved on ${
+          draftTimestamp ? formatDraftTime(draftTimestamp) : 'earlier'
+        }. Would you like to restore it?`}
         confirmLabel="Restore Draft"
         cancelLabel="Discard"
         onConfirm={handleLoadDraft}

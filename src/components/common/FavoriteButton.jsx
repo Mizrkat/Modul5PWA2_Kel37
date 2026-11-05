@@ -1,19 +1,11 @@
 import { Heart } from 'lucide-react'
 import { useIsFavorited } from '../../hooks/useFavorites'
 
-/**
- * A toggleable heart button.  Works with both server-backed and
- * localStorage-only favourites.
- *
- * @param {Object}   props
- * @param {string}   props.gunId  — product UUID (or local id)
- * @param {Function} [props.onToggle] — optional callback after toggle
- */
 export default function FavoriteButton({ gunId, onToggle }) {
   const { isFavorited, loading, toggleFavorite } = useIsFavorited(gunId)
 
   const handleClick = async (e) => {
-    e.stopPropagation()          // don't bubble into card click
+    e.stopPropagation()
     const result = await toggleFavorite()
     if (result && onToggle) onToggle(result)
   }

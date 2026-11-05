@@ -1,19 +1,5 @@
 import { AlertTriangle } from 'lucide-react'
 
-/**
- * Accessible confirmation dialog built on the native <dialog> element.
- *
- * @param {Object}   props
- * @param {boolean}  props.open     — whether the modal is visible
- * @param {string}   props.title    — heading text
- * @param {string}   props.message  — body text
- * @param {string}   [props.confirmLabel='Confirm']
- * @param {string}   [props.cancelLabel='Cancel']
- * @param {boolean}  [props.danger]  — red style for destructive actions
- * @param {boolean}  [props.loading] — disables buttons while in progress
- * @param {Function} props.onConfirm
- * @param {Function} props.onCancel
- */
 export default function ConfirmModal({
   open,
   isOpen,
