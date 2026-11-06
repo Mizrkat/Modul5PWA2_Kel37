@@ -33,10 +33,10 @@ export const DEFAULT_PROFILE = {
   username: 'Kelompok 37',
   avatar: null,
   bio: `daftar anggota :
-Radhine Muhammad Rossie
-Rosita Dwi Ahyani
-Fina Aprilia
-Amanda Lalita Tri Gunawan`,
+Radhine Muhammad Rossie 21120124120017
+Rosita Dwi Ahyani 21120124120043
+Fina Aprilia 21120124140125
+Amanda Lalita Tri Gunawan 21120124130076`,
 }
 
 export const getUserProfile = () => {
