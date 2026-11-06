@@ -568,6 +568,14 @@
   justify-content: center;
 }
 
+.detail-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-top: 14px;
+}
+
 .detail-section {
   background: #fff;
   border: 1px solid var(--line);
@@ -1209,12 +1217,15 @@
   }
 
   .detail-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
     flex-wrap: wrap;
-    gap: 8px;
+    margin-top: 10px;
   }
 
   .detail-actions .btn {
-    flex: 1 1 calc(50% - 6px);
+    flex: 0 0 auto;
   }
 
   .profile-card-top {

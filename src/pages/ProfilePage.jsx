@@ -38,7 +38,7 @@ export default function ProfilePage({
   const [isEditingProfile, setIsEditingProfile] = useState(false)
 
   // Edit profile state (inside dedicated modal / sub-page)
-  const [username, setUsername] = useState(profile.username || 'Shooter')
+  const [username, setUsername] = useState(profile.username || 'Kelompok 37')
   const [bio, setBio] = useState(profile.bio || '')
   const [avatar, setAvatar] = useState(profile.avatar || null)
 
@@ -74,7 +74,7 @@ export default function ProfilePage({
     userService.resetUserIdentifier()
     const newProf = userService.getUserProfile()
     setProfile(newProf)
-    setUsername(newProf.username || 'Shooter')
+    setUsername(newProf.username || 'Kelompok 37')
     setBio(newProf.bio || '')
     setAvatar(null)
     setFeedback('New Operator identity generated. You can now test like/dislike as another user.')
@@ -82,7 +82,7 @@ export default function ProfilePage({
   }
 
   const handleOpenEditModal = () => {
-    setUsername(profile.username || 'Shooter')
+    setUsername(profile.username || 'Kelompok 37')
     setBio(profile.bio || '')
     setAvatar(profile.avatar || null)
     setIsEditingProfile(true)
@@ -107,7 +107,7 @@ export default function ProfilePage({
     e.preventDefault()
     const updated = {
       ...profile,
-      username: username.trim() || 'Shooter',
+      username: username.trim() || 'Kelompok 37',
       bio: bio.trim(),
       avatar,
     }
@@ -194,7 +194,7 @@ export default function ProfilePage({
             </div>
 
             <div className="profile-identity">
-              <h2 className="display">{profile.username || 'Shooter'}</h2>
+              <h2 className="display">{profile.username || 'Kelompok 37'}</h2>
               <div className="profile-id-row" style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
                 <span className="mono-badge">{profile.userId}</span>
                 <button
@@ -219,7 +219,7 @@ export default function ProfilePage({
                 </button>
               </div>
               {profile.bio && (
-                <p className="lede" style={{ marginTop: '8px', fontSize: '0.92rem' }}>
+                <p className="lede" style={{ marginTop: '8px', fontSize: '0.92rem', whiteSpace: 'pre-line' }}>
                   {profile.bio}
                 </p>
               )}
@@ -451,7 +451,7 @@ export default function ProfilePage({
                   value={bio}
                   onChange={(e) => setBio(e.target.value)}
                   placeholder="Qualifications, preferred calibers, unit assignment..."
-                  rows={3}
+                  rows={6}
                   className="form-textarea"
                 />
               </div>

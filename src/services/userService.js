@@ -29,17 +29,46 @@ export const getUserIdentifier = () => {
   }
 }
 
+export const DEFAULT_PROFILE = {
+  username: 'Kelompok 37',
+  avatar: null,
+  bio: `daftar anggota :
+Radhine Muhammad Rossie
+Rosita Dwi Ahyani
+Fina Aprilia
+Amanda Lalita Tri Gunawan`,
+}
+
 export const getUserProfile = () => {
   try {
     const raw = localStorage.getItem(USER_PROFILE_KEY)
-    if (raw) return JSON.parse(raw)
+    if (raw) {
+      const parsed = JSON.parse(raw)
+      let modified = false
+      if (
+        !parsed.bio ||
+        parsed.bio === 'Certified Tactical Armorer & Range Officer.'
+      ) {
+        parsed.bio = DEFAULT_PROFILE.bio
+        modified = true
+      }
+      if (!parsed.username || parsed.username === 'Shooter') {
+        parsed.username = DEFAULT_PROFILE.username
+        modified = true
+      }
+      if (modified) {
+        localStorage.setItem(USER_PROFILE_KEY, JSON.stringify(parsed))
+      }
+      return {
+        ...parsed,
+        userId: parsed.userId || getUserIdentifier(),
+      }
+    }
   } catch {
     /* fallback to default */
   }
   return {
-    username: 'Shooter',
-    avatar: null,
-    bio: 'Certified Tactical Armorer & Range Officer.',
+    ...DEFAULT_PROFILE,
     userId: getUserIdentifier(),
   }
 }
@@ -60,13 +89,13 @@ export const saveUserProfile = (profile) => {
 
 export const updateUsername = (username) => {
   const profile = getUserProfile()
-  profile.username = username.trim() || 'Shooter'
+  profile.username = username.trim() || DEFAULT_PROFILE.username
   return saveUserProfile(profile)
 }
 
 export const updateBio = (bio) => {
   const profile = getUserProfile()
-  profile.bio = bio.trim()
+  profile.bio = bio.trim() || DEFAULT_PROFILE.bio
   return saveUserProfile(profile)
 }
 

@@ -139,7 +139,7 @@ class ReviewService {
       product_id: r.product_id,
       raw_user_id: rawOwner,
       user_identifier: isOwn
-        ? `${getUserProfile().username || 'Shooter'} (You)`
+        ? `${getUserProfile().username || 'Kelompok 37'} (You)`
         : (r.user_identifier ||
             (rawOwner
               ? `Operator ${String(rawOwner).substring(0, 8)}`
@@ -273,7 +273,7 @@ class ReviewService {
         id: tempId,
         product_id: gunId,
         raw_user_id: currentUserId,
-        user_identifier: `${profile.username || 'Shooter'} (You)`,
+        user_identifier: `${profile.username || 'Kelompok 37'} (You)`,
         rating: Number(reviewData.rating),
         comment: reviewData.comment || '',
         raw_comment: reviewData.comment || '',
@@ -331,7 +331,7 @@ class ReviewService {
       id: created?.id || `local-rev-${Date.now()}`,
       product_id: gunId,
       raw_user_id: currentUserId,
-      user_identifier: `${profile.username || 'Shooter'} (You)`,
+      user_identifier: `${profile.username || 'Kelompok 37'} (You)`,
       rating: Number(reviewData.rating),
       comment: reviewData.comment || '',
       raw_comment: reviewData.comment || '',

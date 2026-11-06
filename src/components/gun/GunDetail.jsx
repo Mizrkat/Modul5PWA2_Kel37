@@ -210,7 +210,7 @@ export default function GunDetail({
             </p>
           )}
 
-          <div className="detail-actions" style={{ flexWrap: 'wrap' }}>
+          <div className="detail-actions">
             <FavoriteButton gunId={gun.id || gun.name} />
             {onEdit && (
               <button
