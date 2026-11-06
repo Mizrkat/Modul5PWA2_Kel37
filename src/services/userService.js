@@ -47,7 +47,9 @@ export const getUserProfile = () => {
       let modified = false
       if (
         !parsed.bio ||
-        parsed.bio === 'Certified Tactical Armorer & Range Officer.'
+        parsed.bio === 'Certified Tactical Armorer & Range Officer.' ||
+        (parsed.bio.startsWith('daftar anggota') &&
+          !parsed.bio.includes('21120124120017'))
       ) {
         parsed.bio = DEFAULT_PROFILE.bio
         modified = true
