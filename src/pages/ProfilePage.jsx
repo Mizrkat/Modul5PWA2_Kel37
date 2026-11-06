@@ -17,6 +17,7 @@ import {
   Clock,
   Info,
   X,
+  RefreshCw,
 } from 'lucide-react'
 import userService from '../services/userService'
 import { useFavorites } from '../hooks/useFavorites'
@@ -67,6 +68,17 @@ export default function ProfilePage({
       setCopied(true)
       setTimeout(() => setCopied(false), 2000)
     }
+  }
+
+  const handleSwitchOperator = () => {
+    userService.resetUserIdentifier()
+    const newProf = userService.getUserProfile()
+    setProfile(newProf)
+    setUsername(newProf.username || 'Shooter')
+    setBio(newProf.bio || '')
+    setAvatar(null)
+    setFeedback('New Operator identity generated. You can now test like/dislike as another user.')
+    setTimeout(() => setFeedback(''), 4000)
   }
 
   const handleOpenEditModal = () => {
@@ -183,7 +195,7 @@ export default function ProfilePage({
 
             <div className="profile-identity">
               <h2 className="display">{profile.username || 'Shooter'}</h2>
-              <div className="profile-id-row">
+              <div className="profile-id-row" style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
                 <span className="mono-badge">{profile.userId}</span>
                 <button
                   type="button"
@@ -196,6 +208,14 @@ export default function ProfilePage({
                   ) : (
                     <Copy size={14} />
                   )}
+                </button>
+                <button
+                  type="button"
+                  className="icon-btn"
+                  onClick={handleSwitchOperator}
+                  title="Switch to new Operator ID (simulate another user to like/dislike)"
+                >
+                  <RefreshCw size={14} />
                 </button>
               </div>
               {profile.bio && (

@@ -32,7 +32,7 @@ export function useReviews(gunId) {
   )
 
   useEffect(() => {
-    fetchReviews(false)
+    fetchReviews(true)
     const handleSync = () => fetchReviews(true)
     window.addEventListener('outbox-synced', handleSync)
     return () => window.removeEventListener('outbox-synced', handleSync)
